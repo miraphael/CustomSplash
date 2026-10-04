@@ -80,9 +80,10 @@ fi
 # ---------------------------------------------------------------- 仓库
 REMOTE="$(git remote get-url origin 2>/dev/null || true)"
 [[ -n "$REMOTE" ]] || die "没有 origin 远端，先 git remote add origin <仓库地址>"
-SLUG="$(printf '%s' "$REMOTE" \
-        | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$#\1#')"
+SLUG="$(printf '%s' "$REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/+$##')"
 [[ "$SLUG" == */* ]] || die "识别不出仓库路径，origin = $REMOTE"
+# 兜底：残留 .git 会让后面所有 API 调用变成 404 Not Found。
+[[ "$SLUG" != *.git ]] || die "仓库路径解析异常（残留 .git）：$SLUG"
 say "仓库：$SLUG"
 
 # ---------------------------------------------------------------- 工作区
@@ -100,9 +101,46 @@ api() {
              -H "X-GitHub-Api-Version: 2022-11-28" "$@"
 }
 
+# 远端是否已有这个 tag。
+# 用 API 查而不是 git ls-remote：本机 github.com 不通时 git ls-remote 会**失败**，
+# 而失败和「tag 不存在」在 shell 里长得一样，会被误判成「可以发布」——
+# 结果就是把已发布的版本又发一遍。
+tag_exists() {
+    local code
+    code="$(api -o /dev/null -w '%{http_code}' \
+            "https://api.github.com/repos/$SLUG/git/ref/tags/$TAG" 2>/dev/null || true)"
+    [[ "$code" == "200" ]]
+}
+
+# 把本地 tag 推到远端。github.com 不通时退回 Git Data API 建 ref。
+#
+# 快路径上跑 git push 有三个必须加的限制，否则会**卡死**（实测卡了 5 分钟以上）：
+#   - GIT_TERMINAL_PROMPT=0 / GIT_ASKPASS=echo / credential.helper=
+#     关掉凭据交互 —— 远端要认证时 Git Credential Manager 会弹窗等人点，
+#     在脚本里就是永久挂起（进程列表里能看到 git-credential-helper-selector.exe）。
+#   - timeout 25 兜底，连不上时不要无限等。
+#
+# 另一个注意点：绝不能依赖 `POST /releases` 自动建 tag —— 它会用 target_commitish
+# （默认是仓库默认分支）去建，多版本分支共用一个仓库时会挂错提交。
+push_tag() {
+    if timeout 25 env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=echo \
+            git -c credential.helper= push origin "$TAG" 2>/dev/null; then
+        return 0
+    fi
+    local sha resp
+    warn "git push 走不通（本机 github.com 通常被代理拦），改用 Git Data API 建 tag"
+    sha="$(git rev-parse "$TAG^{commit}")"
+    resp="$(api -X POST "https://api.github.com/repos/$SLUG/git/refs" \
+            -d "{\"ref\":\"refs/tags/$TAG\",\"sha\":\"$sha\"}")"
+    if ! printf '%s' "$resp" | grep -q '"ref"'; then
+        die "通过 API 建 tag 失败，GitHub 返回：$resp"
+    fi
+    say "已通过 API 建 tag $TAG -> $sha"
+}
+
 # ---------------------------------------------------------------- tag 冲突检查
 # 这是「不覆盖别的版本」的第一道闸门。
-if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+if tag_exists; then
     if [[ "$REPLACE" != true ]]; then
         echo
         warn "远端已经存在 tag $TAG —— 说明这个版本已经发布过了。"
@@ -144,7 +182,7 @@ if [[ "$REPLACE" == true ]]; then
         say "删除旧的 Release（id=$REL_ID）"
         api -X DELETE "https://api.github.com/repos/$SLUG/releases/$REL_ID" >/dev/null
     fi
-    if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+    if tag_exists; then
         say "删除旧的远端 tag"
         api -X DELETE "https://api.github.com/repos/$SLUG/git/refs/tags/$TAG" >/dev/null
     fi
@@ -154,18 +192,24 @@ fi
 # ---------------------------------------------------------------- 打 tag
 if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     say "创建 tag $TAG"
-    git tag -a "$TAG" -m "CustomSplash $TAG"
+    # 轻量 tag：ref 直接指向 commit。这样 API 建 ref 时 sha 和本地完全一致，
+    # 不用去凑注释 tag 对象的 sha（消息末尾换行、tagger 时间差一点就对不上）。
+    git tag "$TAG"
 fi
 say "推送 tag"
-git push origin "$TAG"
+push_tag
 
 # ---------------------------------------------------------------- 建 Release
 # 正文里刻意不出现双引号，避免手工拼 JSON 时转义出错。
 BODY="## CustomSplash $FULL_VERSION\\n\\n**Minecraft $MC_VERSION · Fabric**\\n\\n下载下面的 \`customsplash-$FULL_VERSION.jar\`，放进 \`.minecraft/mods/\` 即可。\\n\\n- 支持 PNG / JPG / GIF / MP4（H.264）\\n- 游戏内按 \`F8\` 打开设置界面\\n- 安装与使用说明见仓库首页 README\\n"
 
+# target_commitish 显式写当前分支：多版本分支共用一个仓库时，
+# 不写就会用默认分支，Release 会挂到另一个版本的提交上。
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
 say "创建 GitHub Release"
 RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
-        -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":\"$BODY\",\"draft\":$DRAFT,\"prerelease\":$PRERELEASE}")"
+        -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":\"$BODY\",\"target_commitish\":\"$BRANCH\",\"draft\":$DRAFT,\"prerelease\":$PRERELEASE}")"
 
 REL_ID="$(printf '%s' "$RESP" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' | head -1)"
 URL="$(printf '%s' "$RESP" | sed -n 's/.*"html_url": *"\([^"]*\)".*/\1/p' | head -1)"
@@ -178,18 +222,49 @@ fi
 # 注意：附件必须传到 uploads.github.com。
 # 传 api.github.com 会返回 302，而 curl 遇到 302 会把 POST 降级成 GET，
 # 结果就是「命令没报错、附件却没传上去」。
+#
+# 文件名要**自己 URL 编码**：名字是拼在 query string 里的，
+# 而 `+` 在 query string 里表示空格 —— 于是
+# `customsplash-1.0.0+1.21.11.jar` 会被 GitHub 存成 `customsplash-1.0.0.1.21.11.jar`
+# （空格又被它规整成点），和本地文件名对不上，用户看着也困惑。
+# 用 ${var//+/%2B} 把 + 转义掉即可（bash 内建替换，不用调外部命令）。
 upload_asset() {
-    local file="$1" resp
-    say "上传 $(basename "$file")"
+    local file="$1" name encoded resp got
+    name="$(basename "$file")"
+    encoded="${name//+/%2B}"
+    say "上传 $name"
     resp="$(api -X POST -H "Content-Type: application/octet-stream" \
             --data-binary "@$file" \
-            "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$file")")"
+            "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$encoded")"
     if ! printf '%s' "$resp" | grep -q '"browser_download_url"'; then
-        die "上传 $(basename "$file") 失败，GitHub 返回：$resp"
+        die "上传 $name 失败，GitHub 返回：$resp"
+    fi
+    # 回读一次名字，确认没被转义规则改掉
+    got="$(printf '%s' "$resp" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -1)"
+    if [[ -n "$got" && "$got" != "$name" ]]; then
+        die "上传后附件名变成了 $got，与本地文件名 $name 不一致"
     fi
 }
 
 upload_asset "$JAR"
+
+# ---------------------------------------------------------------- 回读校验
+# 上传完再读一次 Release，用 API 的 digest（sha256）和本地比对。
+# 不下载附件 —— 大文件下载容易中途断（实测 2MB 只拿到 1.7MB），
+# 而 digest 是 GitHub 自己算的，又快又准。
+say "回读校验附件"
+LOCAL_SHA="$(sha256sum "$JAR" | cut -d' ' -f1)"
+CHECK="$(api "https://api.github.com/repos/$SLUG/releases/$REL_ID")"
+REMOTE_SHA="$(printf '%s' "$CHECK" \
+    | sed -n 's/.*"digest": *"sha256:\([0-9a-f]\{64\}\)".*/\1/p' | head -1)"
+if [[ -n "$REMOTE_SHA" && "$REMOTE_SHA" != "$LOCAL_SHA" ]]; then
+    die "附件 sha256 与本地不一致：远端=$REMOTE_SHA 本地=$LOCAL_SHA"
+fi
+if [[ -n "$REMOTE_SHA" ]]; then
+    say "附件 sha256 一致：$REMOTE_SHA"
+else
+    warn "没读到 digest 字段，跳过 sha256 校验"
+fi
 
 echo
 say "完成：$URL"
