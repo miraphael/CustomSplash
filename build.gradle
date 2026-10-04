@@ -52,7 +52,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-    withSourcesJar()
+    // 不生成 -sources.jar：源码由 GitHub 在 Release 页面自动附带的
+    // v<tag>.zip / v<tag>.tar.gz 提供，不再单独打包上传，避免附件冗余。
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }

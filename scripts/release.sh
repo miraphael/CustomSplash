@@ -12,8 +12,10 @@
 #        → 完整版本 1.0.0+1.21.11
 #        → tag     v1.0.0+1.21.11
 #        → 产物    customsplash-1.0.0+1.21.11.jar
-#                  customsplash-1.0.0+1.21.11-sources.jar
 # 文件名和 tag 都带目标 MC 版本，这样同时维护多个游戏版本也不会混淆。
+#
+# Release 只上传一个主 jar 附件；源码由 GitHub 自动附带的
+# v<tag>.zip / v<tag>.tar.gz 提供，不再单独打包 -sources.jar。
 #
 # 每次发布 = 一个新的 tag + 一个新的 Release，不会动到任何已有版本。
 #
@@ -29,7 +31,8 @@ PRERELEASE=false
 REPLACE=false
 
 usage() {
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    # 打印文件开头的注释块（第 2 行到 set -euo 之前），不依赖具体行号
+    sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -61,7 +64,6 @@ MC_VERSION="$(read_prop minecraft_version)"
 FULL_VERSION="$MOD_VERSION+$MC_VERSION"
 TAG="v$FULL_VERSION"
 JAR="build/libs/customsplash-$FULL_VERSION.jar"
-SOURCES_JAR="build/libs/customsplash-$FULL_VERSION-sources.jar"
 
 say "模组版本：$MOD_VERSION    目标 Minecraft：$MC_VERSION"
 say "完整版本：$FULL_VERSION"
@@ -121,13 +123,7 @@ else
 fi
 
 [[ -f "$JAR" ]] || die "构建完成但找不到产物 $JAR"
-say "主产物：$JAR（$(du -h "$JAR" | cut -f1)）"
-
-if [[ -f "$SOURCES_JAR" ]]; then
-    say "源码包：$SOURCES_JAR（$(du -h "$SOURCES_JAR" | cut -f1)）"
-else
-    warn "没找到源码包 $SOURCES_JAR，这次只发主 jar"
-fi
+say "产物：$JAR（$(du -h "$JAR" | cut -f1)）"
 
 # 防止「文件名写着 +1.21.11、包里却是别的版本」这种错版
 if command -v unzip >/dev/null 2>&1; then
@@ -194,8 +190,8 @@ upload_asset() {
 }
 
 upload_asset "$JAR"
-[[ -f "$SOURCES_JAR" ]] && upload_asset "$SOURCES_JAR"
 
 echo
 say "完成：$URL"
 say "旧版本的 tag / Release / 附件都没有被改动。"
+say "源码 zip / tar.gz 由 GitHub 在 Release 页面自动附带，无需上传。"

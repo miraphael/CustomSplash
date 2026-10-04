@@ -322,11 +322,12 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 ./gradlew build          # Windows 用 gradlew.bat build
 ```
 
-产物在 `build/libs/customsplash-1.0.0+1.21.11.jar`（约 1.9 MB，已内置视频解码库），
-同时会生成一份源码包 `customsplash-1.0.0+1.21.11-sources.jar`。
+产物在 `build/libs/customsplash-1.0.0+1.21.11.jar`（约 1.9 MB，已内置视频解码库）。
 
 > 文件名里的 `1.0.0` 是模组版本，`1.21.11` 是目标 Minecraft 版本，
 > 由 `gradle.properties` 的 `mod_version` 和 `minecraft_version` 自动拼出来。
+> 构建**不会**再单独产出 `-sources.jar` —— 需要看源码请直接下载仓库源码，
+> 或从 Release 页面底部 GitHub 自动附带的源码 zip / tar.gz 取。
 
 如果 Gradle 下载太慢，可以把 `gradle/wrapper/gradle-wrapper.properties`
 里的 `distributionUrl` 换成国内镜像，例如：
@@ -371,10 +372,12 @@ fabric_version=0.141.6+1.21.11
   永远拿最新版；想装旧版就往下翻。
 - **文件名一律带目标 Minecraft 版本**，格式 `customsplash-<模组版本>+<MC 版本>.jar`：
 
-  | tag | Release 附件 | 源码包 |
-  |---|---|---|
-  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | `customsplash-1.0.0+1.21.11-sources.jar` |
+  | tag | Release 附件 |
+  |---|---|
+  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` |
 
+- 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
+  `v<tag>.zip` / `v<tag>.tar.gz`，**不用**额外的源码包附件。
 - 发新版本时只会**新建**一个 tag 和 Release，**不会动到任何已有的版本**。
 - 每个 Release 页面底部 GitHub 还会自动附上该 tag 的源代码 zip / tar.gz，
   文件名同样带版本号。
@@ -389,7 +392,7 @@ fabric_version=0.141.6+1.21.11
 ```
 
 脚本会自动拼出 `1.0.1+1.21.11` 这样的完整版本号，然后：检查工作区干净 →
-构建 → 打 tag `v<完整版本>` → 建 Release → 把 jar 和源码包一起传上去。
+构建 → 打 tag `v<完整版本>` → 建 Release → 把模组 jar 传上去。
 如果该 tag 已经存在，脚本会**拒绝执行**（避免误覆盖已发布的版本），
 除非显式加 `--replace`，那样也只替换**这一个** tag 的 Release。
 

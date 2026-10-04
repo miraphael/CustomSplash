@@ -17,8 +17,7 @@ gradle.properties:
             ▼
    GitHub Release "v1.0.0+1.21.11"
             │
-            ├── 附件 customsplash-1.0.0+1.21.11.jar
-            └── 附件 customsplash-1.0.0+1.21.11-sources.jar
+            └── 附件 customsplash-1.0.0+1.21.11.jar
 ```
 
 - **`mod_version` 只写模组自己的语义化版本，不要写 MC 版本**；
@@ -27,7 +26,10 @@ gradle.properties:
   用户也不会下错版本。
 - 发 1.0.1 时只会新建 `v1.0.1+1.21.11`，**完全不碰** `v1.0.0+1.21.11` 的
   tag、Release 和附件。
-- Release 页面底部 GitHub 会自动附上该 tag 的源码 zip / tar.gz，文件名同样带版本号。
+- **Release 只挂一个模组 jar，不上传 `-sources.jar`**：源码由 GitHub 在 Release 页面
+  底部自动附带的 `v<tag>.zip` / `v<tag>.tar.gz` 提供，同样带版本号，功能上完全够用，
+  没必要再多一个附件。因此 `build.gradle` 里**没有** `withSourcesJar()`，
+  `release.sh` 也只传主 jar。
 
 这样做的直接好处：用户点进 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)
 可以拿到最新版，也可以随时回退到任何一个历史版本，旧版本的下载链接永远不会失效。
@@ -71,8 +73,8 @@ git push
 4. `./gradlew build` 构建
 5. **校验 jar 内 `fabric.mod.json` 的版本号和文件名一致**（防错版）
 6. 打 tag 并推送
-7. 创建 GitHub Release，把 `customsplash-1.0.1+1.21.11.jar`
-   和 `customsplash-1.0.1+1.21.11-sources.jar` 都传上去
+7. 创建 GitHub Release，上传 `customsplash-1.0.1+1.21.11.jar`
+   （源码 zip / tar.gz 由 GitHub 自动附带，脚本不上传）
 8. 打印 Release 地址
 
 ### 可选参数

@@ -12,8 +12,9 @@
 首个公开版本，目标平台 **Minecraft 1.21.11 + Fabric**。
 
 > 发布文件命名规则：`customsplash-<模组版本>+<Minecraft 版本>.jar`。
-> 本版本即 `customsplash-1.0.0+1.21.11.jar`，源码包 `customsplash-1.0.0+1.21.11-sources.jar`。
-> tag 同样是 `v1.0.0+1.21.11`。
+> 本版本即 `customsplash-1.0.0+1.21.11.jar`，tag 同样是 `v1.0.0+1.21.11`。
+> Release 只挂这一个 jar；源码用页面底部 GitHub 自动附带的
+> `v1.0.0+1.21.11.zip` / `.tar.gz`。
 
 ### 新增
 
