@@ -142,11 +142,17 @@ if [[ -z "${REL_ID:-}" ]]; then
 fi
 
 # ---------------------------------------------------------------- 传附件
+# 注意：附件必须传到 uploads.github.com。
+# 传 api.github.com 会返回 302，而 curl 遇到 302 会把 POST 降级成 GET，
+# 结果就是「命令没报错、附件却没传上去」。
 say "上传 $JAR"
-api -X POST -H "Content-Type: application/octet-stream" \
-    --data-binary "@$JAR" \
-    "https://api.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$JAR")" \
-    >/dev/null
+ASSET="$(api -X POST -H "Content-Type: application/octet-stream" \
+        --data-binary "@$JAR" \
+        "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$JAR")")"
+
+if ! printf '%s' "$ASSET" | grep -q '"browser_download_url"'; then
+    die "上传附件失败，GitHub 返回：$ASSET"
+fi
 
 echo
 say "完成：$URL"
