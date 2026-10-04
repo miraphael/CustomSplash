@@ -372,9 +372,10 @@ fabric_version=0.141.6+1.21.11
   永远拿最新版；想装旧版就往下翻。
 - **文件名一律带目标 Minecraft 版本**，格式 `customsplash-<模组版本>+<MC 版本>.jar`：
 
-  | tag | Release 附件 |
-  |---|---|
-  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` |
+  | tag | Release 附件 | 适用游戏 | 分支 |
+  |---|---|---|---|
+  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 | `main` |
+  | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 | `mc26` |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
   `v<tag>.zip` / `v<tag>.tar.gz`，**不用**额外的源码包附件。
@@ -406,21 +407,32 @@ fabric_version=0.141.6+1.21.11
 
 **26.x 不是小版本升级，而是一次渲染底层的大重构**，本项目实测确认了以下变化：
 
-| 1.21.11（本项目目标） | 26.3 |
+| 1.21.11（本分支目标） | 26.2 |
 |---|---|
 | `net.minecraft.client.gui.DrawContext` | `net.minecraft.client.gui.GuiGraphicsExtractor`（绘制架构换成 extractor 模式） |
-| `net.minecraft.client.texture.NativeImage` | `com.mojang.blaze3d.platform.NativeImage` |
-| `net.minecraft.util.Identifier` | `net.minecraft.resources.Identifier` |
-| `net.minecraft.client.texture.TextureManager` | `net.minecraft.client.renderer.texture.TextureManager` |
-| `com.mojang.blaze3d.pipeline.RenderPipeline` | `com.mojang.renderpearl.api.pipeline.RenderPipeline`（全新渲染后端，含 Vulkan） |
+| `render(...)` / `renderBackground(...)` | `extractRenderState(...)` / `extractBackground(...)`（绘制分两段） |
+| `net.minecraft.client.texture.NativeImage` | `com.mojang.blaze3d.platform.NativeImage`（**内存布局没变**） |
+| `net.minecraft.util.Identifier` | `net.minecraft.resources.Identifier`（**没有 `of(...)`**） |
+| `net.minecraft.client.texture.NativeImageBackedTexture` | `net.minecraft.client.renderer.texture.DynamicTexture` |
 | `client.gui.screen.SplashOverlay` | `client.gui.screens.LoadingOverlay` |
 | `client.gui.screen.TitleScreen` | `client.gui.screens.TitleScreen` |
+| `client.option.KeyBinding` | `client.KeyMapping` |
 | 需要 Yarn 映射（游戏是混淆的） | **游戏不再混淆，直接用官方类名，没有 Yarn** |
 
 另外 26.x 目前**还没有 Yarn 映射**（Fabric 官方对该版本返回 `intermediary: 0.0.0`），
 这意味着它需要单独建一个项目、用官方映射来编译，**不能和 1.21.11 共用同一个 jar**。
 
-详细移植步骤见 [`docs/PORTING-26x.md`](docs/PORTING-26x.md)。
+### 26.2 已经做好了
+
+26.2 版本在同一个仓库的 **`mc26` 分支**上单独维护，代码结构一致、功能完全一样，
+差别只在渲染相关的 API 和工具链（**JDK 25 + Gradle 9 + Loom 1.18.2**）。
+
+- 分支：<https://github.com/miraphael/CustomSplash/tree/mc26>
+- 下载：Release 页面里 `+26.2` 结尾的那个 jar（`customsplash-1.0.0+26.2.jar`）
+- 移植记录（类名对照、踩坑、验证方法）：[`docs/PORTING-26x.md`](docs/PORTING-26x.md)
+
+> 两个分支的 tag / Release 各自独立，互不覆盖：
+> `v1.0.0+1.21.11` 和 `v1.0.0+26.2`。
 
 ---
 

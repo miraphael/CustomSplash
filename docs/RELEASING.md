@@ -52,8 +52,11 @@ minecraft_version=1.21.11     # 目标游戏版本，换版本时才动
 ```bash
 git add -A
 git commit -m "发布 1.0.1"
-git push
 ```
+
+> 提交后记得把分支推上去。本机 `github.com` 主站通常被代理拦
+> （`git push` 报 `CONNECT tunnel failed`），用技能里的 `push-via-api.py`
+> 走 Git Data API 推，sha 和本地完全一致。
 
 ### 3. 跑发布脚本
 
@@ -73,8 +76,10 @@ git push
 4. `./gradlew build` 构建
 5. **校验 jar 内 `fabric.mod.json` 的版本号和文件名一致**（防错版）
 6. 打 tag 并推送
-7. 创建 GitHub Release，上传 `customsplash-1.0.1+1.21.11.jar`
+7. 创建 GitHub Release（显式带 `target_commitish`），
+   上传 `customsplash-1.0.1+1.21.11.jar`
    （源码 zip / tar.gz 由 GitHub 自动附带，脚本不上传）
+8. 回读 Release，用 API 的 `digest`（sha256）校验附件和本地一致
 8. 打印 Release 地址
 
 ### 可选参数
@@ -133,6 +138,12 @@ git push origin v1.0.1+1.21.11     # 剩下的交给 CI
 CI 用的 `GITHUB_TOKEN` 是 Actions 自带的，不需要自己配密钥。
 `release.yml` 里也写了「tag 与 `gradle.properties` 的版本对不上就拒绝发布」的保护。
 
+> ⚠️ **两条发布路径别同时开。** 本地 `./scripts/release.sh` 已经建了 Release
+> 并上传了**实机验证过的那个 jar**；如果同一个 tag 又触发 `release.yml`，
+> CI 会在 Linux 上重新构建一份，而 `softprops/action-gh-release` 默认会
+> **覆盖同名附件** —— 最后挂上去的就不是验证过的那一个了。
+> 现在的做法是**本地脚本发布**，`release.yml` 留作备用（比如从网页上打 tag 时用）。
+
 ---
 
 ## 版本号怎么定
@@ -145,16 +156,22 @@ CI 用的 `GITHUB_TOKEN` 是 Actions 自带的，不需要自己配密钥。
 | 加新功能，但老配置还能用 | `1.0.0` → `1.1.0` |
 | 配置格式变了、要玩家重新设置 | `1.0.0` → `2.0.0` |
 
-### 如果以后要支持多个 Minecraft 版本
+### 多 Minecraft 版本是怎么组织的（已实施）
 
 因为 26.x 的渲染层和 1.21.x 完全不同（见 [PORTING-26x.md](PORTING-26x.md)），
-不可能共用一个 jar。真要做多版本时：
+不可能共用一个 jar。现在的做法是：
 
-- **同一个仓库、不同分支**：`main` 跟 1.21.x，`mc-26.x` 跟 26.x。
+| 分支 | 目标 | 工具链 | 产物 |
+|---|---|---|---|
+| `main` | Minecraft **1.21.11** | JDK 21 + Gradle 8 + Loom 1.13.6 | `customsplash-1.0.0+1.21.11.jar` |
+| `mc26` | Minecraft **26.2** | JDK 25 + Gradle 9 + Loom 1.18.2 | `customsplash-1.0.0+26.2.jar` |
+
 - 两边可以都用 `mod_version=1.0.0`，因为 tag 会自动带上 MC 版本
-  （`v1.0.0+1.21.11` 和 `v1.0.0+26.3`），**不会撞车，各自的 Release 互不覆盖**。
-- 产物名同理：`customsplash-1.0.0+1.21.11.jar` 和 `customsplash-1.0.0+26.3.jar`，
-  用户一眼就能看出该下哪个。
+  （`v1.0.0+1.21.11` 和 `v1.0.0+26.2`），**不会撞车，各自的 Release 互不覆盖**。
+- 产物名同理，用户一眼就能看出该下哪个。
+- **两个分支的历史是独立的**（`mc26` 是从零新建的根提交），
+  所以不存在「合并不上」的问题，也不需要互相 rebase。
+- 两边各自有 `build.yml`，用各自的 JDK 版本跑 CI。
 
 **这就是文件名带 MC 版本的意义** —— 不做这件事的话，
 两个分支的 `mod_version` 一旦相同，附件名就会重名，很容易发错包。
