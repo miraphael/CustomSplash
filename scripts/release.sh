@@ -84,9 +84,10 @@ fi
 # ---------------------------------------------------------------- 仓库
 REMOTE="$(git remote get-url origin 2>/dev/null || true)"
 [[ -n "$REMOTE" ]] || die "没有 origin 远端，先 git remote add origin <仓库地址>"
-SLUG="$(printf '%s' "$REMOTE" \
-        | sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$#\1#')"
+SLUG="$(printf '%s' "$REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##; s#/+$##')"
 [[ "$SLUG" == */* ]] || die "识别不出仓库路径，origin = $REMOTE"
+# 兜底：残留 .git 会让后面所有 API 调用变成 404 Not Found。
+[[ "$SLUG" != *.git ]] || die "仓库路径解析异常（残留 .git）：$SLUG"
 say "仓库：$SLUG"
 
 # ---------------------------------------------------------------- 工作区
