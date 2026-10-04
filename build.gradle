@@ -1,0 +1,78 @@
+plugins {
+    // ★ 26.x 必须用这个插件 id，不是普通的 'fabric-loom'。
+    //   26.x 的游戏不再混淆，没有 Yarn / intermediary 可映射，
+    //   所以要用 Loom 的「no-remap」变体 —— 它不会去解析 mappings 配置。
+    //   （用 'fabric-loom' 会直接报 "Configuration 'mappings' has no dependencies"。）
+    //   两个插件 id 由同一个 artifact 提供：
+    //     fabric-loom              → LoomGradlePlugin（1.21.x 及更早）
+    //     net.fabricmc.fabric-loom → LoomNoRemapGradlePlugin（26.x）
+    //
+    // 工具链要求：Loom 1.18.x → Gradle 9.x（Loom 官方自己用 9.7.0）→ JDK 25
+    // 别乱降版本：Loom 1.14 起不再支持 Gradle 8，Loom 1.17 起要求 JDK 25。
+    id 'net.fabricmc.fabric-loom' version '1.18.2'
+}
+
+// 版本号 = 模组版本 + 目标 Minecraft 版本，例如 1.0.0+26.2。
+// 这样产物名 customsplash-1.0.0+26.2.jar 一眼就能看出是给哪个游戏版本的，
+// 和 1.21.11 那份放在一起也不会混淆。
+// 这个 version 也会被 processResources 展开进 fabric.mod.json。
+version = "${project.mod_version}+${project.minecraft_version}"
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    // ---- Minecraft 本体 ----
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    // 26.x 的客户端 jar 里就是 net/minecraft/... 官方类名，游戏不再混淆，
+    // 所以**故意不写 mappings**（no-remap 插件也不会去找它）。
+    // Fabric 对 26.2 返回的 intermediary 就是 0.0.0。
+
+    // ---- Fabric 加载器与 API ----
+    // 官方 26.2 示例用的就是 implementation（不混淆，不需要 modImplementation 的额外重映射）
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // ---- 视频解码（纯 Java 的 H.264 解码器，用于 MP4）----
+    // 这一段和 1.21.11 那份完全一样：jcodec 不依赖 Minecraft。
+    // include(...) 会把它作为嵌套 jar 一起打包进模组，玩家无需额外安装。
+    include(implementation('org.jcodec:jcodec:0.2.5'))
+    include(implementation('org.jcodec:jcodec-javase:0.2.5'))
+}
+
+processResources {
+    inputs.property 'version', project.version
+
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    // 26.x 运行时是 Java 25，类文件也要按 25 生成
+    it.options.release = 25
+}
+
+java {
+    // 和 1.21.11 那份一样，不生成 -sources.jar：
+    // 源码由 GitHub 在 Release 页面自动附带的 v<tag>.zip / v<tag>.tar.gz 提供。
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}" }
+    }
+}
