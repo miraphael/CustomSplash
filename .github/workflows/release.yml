@@ -1,0 +1,70 @@
+name: Release
+
+# 只有推送 v* 形式的 tag 才会触发，例如：
+#     git tag v1.0.1
+#     git push origin v1.0.1
+#
+# 这个工作流只处理「被推送的那个 tag」：
+# 它不会读取、修改或删除任何其它 tag / Release / 附件，
+# 所以发新版本不会影响已经发布过的版本。
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # 建 Release 需要
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 防止出现「tag 是 v1.0.1+1.21.11、包里却是别的版本」这种错版。
+      # 完整版本号 = mod_version + "+" + minecraft_version，和 build.gradle 里的拼法一致。
+      - name: Verify tag matches mod_version + minecraft_version
+        run: |
+          prop() {
+            grep -E "^[[:space:]]*$1[[:space:]]*=" gradle.properties \
+              | head -1 | cut -d= -f2 | tr -d ' \r'
+          }
+          EXPECTED="$(prop mod_version)+$(prop minecraft_version)"
+          ACTUAL="${GITHUB_REF_NAME#v}"
+          echo "gradle.properties 拼出的完整版本 = $EXPECTED"
+          echo "tag 去掉 v 之后                  = $ACTUAL"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::tag 和 gradle.properties 的 mod_version+minecraft_version 不一致，拒绝发布"
+            exit 1
+          fi
+
+      - name: Build
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          fail_on_unmatched_files: true
+          # 只传模组主 jar（build.gradle 没有 withSourcesJar()，构建产物里也只有它）。
+          # 源码 zip / tar.gz 由 GitHub 在 Release 页面自动附带，不需要这里上传。
+          files: |
+            build/libs/*.jar
