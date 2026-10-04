@@ -4,7 +4,11 @@ plugins {
     id 'fabric-loom' version '1.13.6'
 }
 
-version = project.mod_version
+// 版本号 = 模组版本 + 目标 Minecraft 版本，例如 1.0.0+1.21.11。
+// 这样产物名 customsplash-1.0.0+1.21.11.jar 一眼就能看出是给哪个游戏版本的，
+// 以后同时维护多个 MC 版本时也不会互相混淆。
+// 这个 version 也会被 processResources 展开进 fabric.mod.json。
+version = "${project.mod_version}+${project.minecraft_version}"
 group = project.maven_group
 
 base {

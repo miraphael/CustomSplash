@@ -7,15 +7,27 @@
 ## 核心原则：一个版本 = 一个 tag = 一个 Release
 
 ```
-gradle.properties 的 mod_version = 1.0.0
-        │
-        ▼
-   git tag v1.0.0  ──►  GitHub Release "v1.0.0"  ──►  附件 customsplash-1.0.0.jar
+gradle.properties:
+    mod_version       = 1.0.0
+    minecraft_version = 1.21.11
+            │
+            ▼  拼成完整版本 1.0.0+1.21.11
+   git tag v1.0.0+1.21.11
+            │
+            ▼
+   GitHub Release "v1.0.0+1.21.11"
+            │
+            ├── 附件 customsplash-1.0.0+1.21.11.jar
+            └── 附件 customsplash-1.0.0+1.21.11-sources.jar
 ```
 
-- 版本号只从 `gradle.properties` 的 `mod_version` 读，**只在一个地方维护**。
-- tag 名固定是 `v` + 版本号，Release 名和附件名都由它推导。
-- 发 1.0.1 时只会新建 `v1.0.1`，**完全不碰** `v1.0.0` 的 tag、Release 和附件。
+- **`mod_version` 只写模组自己的语义化版本，不要写 MC 版本**；
+  MC 版本从 `minecraft_version` 取，两者由构建脚本自动拼起来，**只在一个地方维护**。
+- **文件名和 tag 一律带目标 Minecraft 版本**，这样同时维护多个游戏版本时不会混淆，
+  用户也不会下错版本。
+- 发 1.0.1 时只会新建 `v1.0.1+1.21.11`，**完全不碰** `v1.0.0+1.21.11` 的
+  tag、Release 和附件。
+- Release 页面底部 GitHub 会自动附上该 tag 的源码 zip / tar.gz，文件名同样带版本号。
 
 这样做的直接好处：用户点进 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)
 可以拿到最新版，也可以随时回退到任何一个历史版本，旧版本的下载链接永远不会失效。
@@ -26,10 +38,11 @@ gradle.properties 的 mod_version = 1.0.0
 
 ### 1. 改版本号
 
-编辑 `gradle.properties`：
+编辑 `gradle.properties`。**只改 `mod_version`，不要往里面写 MC 版本**：
 
 ```properties
 mod_version=1.0.1
+minecraft_version=1.21.11     # 目标游戏版本，换版本时才动
 ```
 
 ### 2. 提交
@@ -43,19 +56,24 @@ git push
 ### 3. 跑发布脚本
 
 ```bash
-export GITHUB_TOKEN=<你的令牌>
 ./scripts/release.sh
 ```
 
+（脚本会自动从 `~/.workbuddy-ai/credentials/github-token.txt` 读令牌，
+也可以自己 `export GITHUB_TOKEN=...`。）
+
 脚本会依次做这些事：
 
-1. 检查工作区是否干净（有未提交的改动就直接退出，避免发出一个和源码对不上的包）
-2. 从 `gradle.properties` 读出 `mod_version`，拼出 tag `v1.0.1`
+1. 从 `gradle.properties` 读出 `mod_version` 和 `minecraft_version`，
+   拼出完整版本 `1.0.1+1.21.11` 和 tag `v1.0.1+1.21.11`
+2. 检查工作区是否干净（有未提交的改动就直接退出，避免发出一个和源码对不上的包）
 3. **检查这个 tag 是否已经存在** —— 存在就拒绝执行
 4. `./gradlew build` 构建
-5. 打 tag 并推送
-6. 创建 GitHub Release，把 `build/libs/customsplash-1.0.1.jar` 传上去
-7. 打印 Release 地址
+5. **校验 jar 内 `fabric.mod.json` 的版本号和文件名一致**（防错版）
+6. 打 tag 并推送
+7. 创建 GitHub Release，把 `customsplash-1.0.1+1.21.11.jar`
+   和 `customsplash-1.0.1+1.21.11-sources.jar` 都传上去
+8. 打印 Release 地址
 
 ### 可选参数
 
@@ -72,10 +90,13 @@ export GITHUB_TOKEN=<你的令牌>
 
 ## 令牌权限
 
-发布脚本需要 GitHub 令牌，从环境变量读：
+发布脚本按下面的顺序找令牌：
+
+1. 环境变量 `GITHUB_TOKEN` 或 `GH_TOKEN`
+2. 本机凭据文件 `~/.workbuddy-ai/credentials/github-token.txt`（权限 `600`）
 
 ```bash
-export GITHUB_TOKEN=ghp_xxxxxxxx
+export GITHUB_TOKEN=ghp_xxxxxxxx     # 方式一
 ```
 
 令牌需要的权限：
@@ -85,8 +106,8 @@ export GITHUB_TOKEN=ghp_xxxxxxxx
 | 建仓库、推代码、建 Release | `repo` |
 | 推送 `.github/workflows/` 下的自动构建配置 | 额外需要 `workflow` |
 
-> 令牌**不要**写进任何文件、也不要提交到仓库。脚本只从环境变量读。
-> 建议给它设一个到期时间，泄漏了随时在 GitHub 设置里撤销。
+> 令牌**不要**提交到仓库（`~/.workbuddy-ai/` 在仓库外面，不会被提交）。
+> 建议给它设一个到期时间，一旦泄漏就去 GitHub 设置里撤销重发。
 
 ---
 
@@ -103,12 +124,12 @@ export GITHUB_TOKEN=ghp_xxxxxxxx
 用 Actions 的话，发版流程简化成：
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1     # 剩下的交给 CI
+git tag v1.0.1+1.21.11
+git push origin v1.0.1+1.21.11     # 剩下的交给 CI
 ```
 
 CI 用的 `GITHUB_TOKEN` 是 Actions 自带的，不需要自己配密钥。
-`release.yml` 里也写了「tag 已存在则不重复发布」的保护。
+`release.yml` 里也写了「tag 与 `gradle.properties` 的版本对不上就拒绝发布」的保护。
 
 ---
 
@@ -125,9 +146,13 @@ CI 用的 `GITHUB_TOKEN` 是 Actions 自带的，不需要自己配密钥。
 ### 如果以后要支持多个 Minecraft 版本
 
 因为 26.x 的渲染层和 1.21.x 完全不同（见 [PORTING-26x.md](PORTING-26x.md)），
-不可能共用一个 jar。真要做多版本时建议：
+不可能共用一个 jar。真要做多版本时：
 
 - **同一个仓库、不同分支**：`main` 跟 1.21.x，`mc-26.x` 跟 26.x。
-- **tag 里带上游戏版本**：`v1.0.0+1.21.11`、`v1.0.0+26.3`。
-  这样即使两个分支的 `mod_version` 一样，tag 也不会撞车，**各自的 Release 互不覆盖**。
-- Release 正文里写清楚支持哪个游戏版本。
+- 两边可以都用 `mod_version=1.0.0`，因为 tag 会自动带上 MC 版本
+  （`v1.0.0+1.21.11` 和 `v1.0.0+26.3`），**不会撞车，各自的 Release 互不覆盖**。
+- 产物名同理：`customsplash-1.0.0+1.21.11.jar` 和 `customsplash-1.0.0+26.3.jar`，
+  用户一眼就能看出该下哪个。
+
+**这就是文件名带 MC 版本的意义** —— 不做这件事的话，
+两个分支的 `mod_version` 一旦相同，附件名就会重名，很容易发错包。

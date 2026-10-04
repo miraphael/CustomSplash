@@ -7,7 +7,14 @@
 #   ./scripts/release.sh --prerelease    标记为预发布（beta / rc）
 #   ./scripts/release.sh --replace       仅替换「当前这个版本」的 Release
 #
-# 版本号只从 gradle.properties 的 mod_version 读。
+# 版本号由 gradle.properties 的两行拼出来：
+#     mod_version=1.0.0  +  minecraft_version=1.21.11
+#        → 完整版本 1.0.0+1.21.11
+#        → tag     v1.0.0+1.21.11
+#        → 产物    customsplash-1.0.0+1.21.11.jar
+#                  customsplash-1.0.0+1.21.11-sources.jar
+# 文件名和 tag 都带目标 MC 版本，这样同时维护多个游戏版本也不会混淆。
+#
 # 每次发布 = 一个新的 tag + 一个新的 Release，不会动到任何已有版本。
 #
 # 需要环境变量 GITHUB_TOKEN（GitHub 个人令牌，repo 权限）。
@@ -22,7 +29,7 @@ PRERELEASE=false
 REPLACE=false
 
 usage() {
-    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -41,16 +48,31 @@ warn() { printf '\033[33m[release]\033[0m %s\n' "$*"; }
 die()  { printf '\033[31m[release] 错误：%s\033[0m\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 版本号
-VERSION="$(grep -E '^[[:space:]]*mod_version[[:space:]]*=' gradle.properties \
-           | head -1 | cut -d= -f2 | tr -d ' \r\n')"
-[[ -n "$VERSION" ]] || die "读不到 gradle.properties 里的 mod_version"
-TAG="v$VERSION"
-JAR="build/libs/customsplash-$VERSION.jar"
+read_prop() {
+    grep -E "^[[:space:]]*$1[[:space:]]*=" gradle.properties \
+        | head -1 | cut -d= -f2 | tr -d ' \r\n'
+}
 
-say "版本号：$VERSION    tag：$TAG"
+MOD_VERSION="$(read_prop mod_version)"
+MC_VERSION="$(read_prop minecraft_version)"
+[[ -n "$MOD_VERSION" ]] || die "读不到 gradle.properties 里的 mod_version"
+[[ -n "$MC_VERSION" ]]  || die "读不到 gradle.properties 里的 minecraft_version"
+
+FULL_VERSION="$MOD_VERSION+$MC_VERSION"
+TAG="v$FULL_VERSION"
+JAR="build/libs/customsplash-$FULL_VERSION.jar"
+SOURCES_JAR="build/libs/customsplash-$FULL_VERSION-sources.jar"
+
+say "模组版本：$MOD_VERSION    目标 Minecraft：$MC_VERSION"
+say "完整版本：$FULL_VERSION"
+say "tag：$TAG"
 
 # ---------------------------------------------------------------- 令牌
 TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+if [[ -z "$TOKEN" ]]; then
+    CRED="$HOME/.workbuddy-ai/credentials/github-token.txt"
+    [[ -f "$CRED" ]] && TOKEN="$(tr -d ' \r\n' < "$CRED")"
+fi
 [[ -n "$TOKEN" ]] || die "请先设置令牌：export GITHUB_TOKEN=<你的 GitHub 令牌>"
 
 # ---------------------------------------------------------------- 仓库
@@ -99,9 +121,24 @@ else
 fi
 
 [[ -f "$JAR" ]] || die "构建完成但找不到产物 $JAR"
+say "主产物：$JAR（$(du -h "$JAR" | cut -f1)）"
 
-SIZE="$(du -h "$JAR" | cut -f1)"
-say "产物：$JAR（$SIZE）"
+if [[ -f "$SOURCES_JAR" ]]; then
+    say "源码包：$SOURCES_JAR（$(du -h "$SOURCES_JAR" | cut -f1)）"
+else
+    warn "没找到源码包 $SOURCES_JAR，这次只发主 jar"
+fi
+
+# 防止「文件名写着 +1.21.11、包里却是别的版本」这种错版
+if command -v unzip >/dev/null 2>&1; then
+    BUILT_VERSION="$(unzip -p "$JAR" fabric.mod.json \
+        | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 \
+        | sed -E 's/.*"([^"]*)"$/\1/')"
+    if [[ -n "$BUILT_VERSION" && "$BUILT_VERSION" != "$FULL_VERSION" ]]; then
+        die "jar 内 fabric.mod.json 的版本是 $BUILT_VERSION，与期望的 $FULL_VERSION 不一致"
+    fi
+    say "jar 内版本号校验通过：$BUILT_VERSION"
+fi
 
 # ---------------------------------------------------------------- --replace 清理
 if [[ "$REPLACE" == true ]]; then
@@ -128,7 +165,7 @@ git push origin "$TAG"
 
 # ---------------------------------------------------------------- 建 Release
 # 正文里刻意不出现双引号，避免手工拼 JSON 时转义出错。
-BODY="## CustomSplash $TAG\\n\\n**Minecraft 1.21.11 · Fabric**\\n\\n下载下面的 \`customsplash-$VERSION.jar\`，放进 \`.minecraft/mods/\` 即可。\\n\\n- 支持 PNG / JPG / GIF / MP4（H.264）\\n- 游戏内按 \`F8\` 打开设置界面\\n- 安装与使用说明见仓库首页 README\\n"
+BODY="## CustomSplash $FULL_VERSION\\n\\n**Minecraft $MC_VERSION · Fabric**\\n\\n下载下面的 \`customsplash-$FULL_VERSION.jar\`，放进 \`.minecraft/mods/\` 即可。\\n\\n- 支持 PNG / JPG / GIF / MP4（H.264）\\n- 游戏内按 \`F8\` 打开设置界面\\n- 安装与使用说明见仓库首页 README\\n"
 
 say "创建 GitHub Release"
 RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
@@ -145,14 +182,19 @@ fi
 # 注意：附件必须传到 uploads.github.com。
 # 传 api.github.com 会返回 302，而 curl 遇到 302 会把 POST 降级成 GET，
 # 结果就是「命令没报错、附件却没传上去」。
-say "上传 $JAR"
-ASSET="$(api -X POST -H "Content-Type: application/octet-stream" \
-        --data-binary "@$JAR" \
-        "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$JAR")")"
+upload_asset() {
+    local file="$1" resp
+    say "上传 $(basename "$file")"
+    resp="$(api -X POST -H "Content-Type: application/octet-stream" \
+            --data-binary "@$file" \
+            "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$file")")"
+    if ! printf '%s' "$resp" | grep -q '"browser_download_url"'; then
+        die "上传 $(basename "$file") 失败，GitHub 返回：$resp"
+    fi
+}
 
-if ! printf '%s' "$ASSET" | grep -q '"browser_download_url"'; then
-    die "上传附件失败，GitHub 返回：$ASSET"
-fi
+upload_asset "$JAR"
+[[ -f "$SOURCES_JAR" ]] && upload_asset "$SOURCES_JAR"
 
 echo
 say "完成：$URL"

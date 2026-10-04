@@ -91,8 +91,12 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 ### 安装步骤
 
 1. 到 [**Releases**](https://github.com/miraphael/CustomSplash/releases) 页面，
-   下载最新版本的 `customsplash-x.x.x.jar`。
+   下载最新版本的 jar。
 2. 把它放进 `.minecraft/mods/` 文件夹。
+
+> **文件名里的版本号怎么看**：格式是 `customsplash-<模组版本>+<Minecraft 版本>.jar`，
+> 例如 `customsplash-1.0.0+1.21.11.jar` 就是「模组 1.0.0 版，给 Minecraft 1.21.11 用的」。
+> **别下错游戏版本** —— 每个 Minecraft 版本对应一个独立的 jar。
 3. 启动一次游戏 —— 模组会自动创建下面这两个东西：
    ```
    .minecraft/config/customsplash.json     ← 配置文件
@@ -318,7 +322,11 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 ./gradlew build          # Windows 用 gradlew.bat build
 ```
 
-产物在 `build/libs/customsplash-1.0.0.jar`（约 1.9 MB，已内置视频解码库）。
+产物在 `build/libs/customsplash-1.0.0+1.21.11.jar`（约 1.9 MB，已内置视频解码库），
+同时会生成一份源码包 `customsplash-1.0.0+1.21.11-sources.jar`。
+
+> 文件名里的 `1.0.0` 是模组版本，`1.21.11` 是目标 Minecraft 版本，
+> 由 `gradle.properties` 的 `mod_version` 和 `minecraft_version` 自动拼出来。
 
 如果 Gradle 下载太慢，可以把 `gradle/wrapper/gradle-wrapper.properties`
 里的 `distributionUrl` 换成国内镜像，例如：
@@ -361,18 +369,27 @@ fabric_version=0.141.6+1.21.11
 
 - 下载地址固定是 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)，
   永远拿最新版；想装旧版就往下翻。
-- 版本号和 git tag 一一对应：tag `v1.0.0` ↔ Release `v1.0.0` ↔ 附件 `customsplash-1.0.0.jar`。
+- **文件名一律带目标 Minecraft 版本**，格式 `customsplash-<模组版本>+<MC 版本>.jar`：
+
+  | tag | Release 附件 | 源码包 |
+  |---|---|---|
+  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | `customsplash-1.0.0+1.21.11-sources.jar` |
+
 - 发新版本时只会**新建**一个 tag 和 Release，**不会动到任何已有的版本**。
+- 每个 Release 页面底部 GitHub 还会自动附上该 tag 的源代码 zip / tar.gz，
+  文件名同样带版本号。
 
 ### 发新版本怎么做
 
-`gradle.properties` 里改 `mod_version`，然后跑发布脚本：
+改 `gradle.properties` 里的 `mod_version`（**只写模组版本，不要写 MC 版本**），
+然后跑发布脚本：
 
 ```bash
 ./scripts/release.sh
 ```
 
-脚本会：检查工作区干净 → 用 `mod_version` 构建 → 打 tag `v<版本号>` → 建 Release 并把 jar 传上去。
+脚本会自动拼出 `1.0.1+1.21.11` 这样的完整版本号，然后：检查工作区干净 →
+构建 → 打 tag `v<完整版本>` → 建 Release → 把 jar 和源码包一起传上去。
 如果该 tag 已经存在，脚本会**拒绝执行**（避免误覆盖已发布的版本），
 除非显式加 `--replace`，那样也只替换**这一个** tag 的 Release。
 

@@ -11,6 +11,10 @@
 
 首个公开版本，目标平台 **Minecraft 1.21.11 + Fabric**。
 
+> 发布文件命名规则：`customsplash-<模组版本>+<Minecraft 版本>.jar`。
+> 本版本即 `customsplash-1.0.0+1.21.11.jar`，源码包 `customsplash-1.0.0+1.21.11-sources.jar`。
+> tag 同样是 `v1.0.0+1.21.11`。
+
 ### 新增
 
 - **三块启动界面都能替换**：早期启动屏（`SplashOverlay`）、主菜单（`TitleScreen`）、
@@ -50,4 +54,4 @@
   **无法与 1.21.11 共用同一个 jar**。移植说明见
   [docs/PORTING-26x.md](docs/PORTING-26x.md)。
 
-[1.0.0]: https://github.com/miraphael/CustomSplash/releases/tag/v1.0.0
+[1.0.0]: https://github.com/miraphael/CustomSplash/releases/tag/v1.0.0+1.21.11
