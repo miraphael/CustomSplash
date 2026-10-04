@@ -242,18 +242,52 @@ fi
 # 注意：附件必须传到 uploads.github.com。
 # 传 api.github.com 会返回 302，而 curl 遇到 302 会把 POST 降级成 GET，
 # 结果就是「命令没报错、附件却没传上去」。
+#
+# 文件名要**自己 URL 编码**：名字是拼在 query string 里的，
+# 而 `+` 在 query string 里表示空格 —— 于是
+# `customsplash-1.0.0+26.2.jar` 会被 GitHub 存成 `customsplash-1.0.0.26.2.jar`
+# （空格又被它规整成点），和本地文件名对不上，用户看着也困惑。
+# 用 ${var//+/%2B} 把 + 转义掉即可（这个替换是 bash 内建的，不用调外部命令）。
 upload_asset() {
-    local file="$1" resp
-    say "上传 $(basename "$file")"
+    local file="$1" name encoded resp
+    name="$(basename "$file")"
+    encoded="${name//+/%2B}"
+    say "上传 $name"
     resp="$(api -X POST -H "Content-Type: application/octet-stream" \
             --data-binary "@$file" \
-            "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$(basename "$file")")"
+            "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$encoded")"
     if ! printf '%s' "$resp" | grep -q '"browser_download_url"'; then
-        die "上传 $(basename "$file") 失败，GitHub 返回：$resp"
+        die "上传 $name 失败，GitHub 返回：$resp"
+    fi
+    # 回读一次名字，确认没被转义规则改掉
+    local got
+    got="$(printf '%s' "$resp" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -1)"
+    if [[ -n "$got" && "$got" != "$name" ]]; then
+        die "上传后附件名变成了 $got，与本地文件名 $name 不一致"
     fi
 }
 
 upload_asset "$JAR"
+
+# ---------------------------------------------------------------- 回读校验
+# 上传完再读一次 Release，用 API 的 digest（sha256）和本地比对。
+# 不下载附件 —— 大文件下载容易中途断（实测 2MB 只拿到 1.7MB），
+# 而 digest 是 GitHub 自己算的，又快又准。
+# （这条检查是有来历的：附件名里的 `+` 被 query string 规则吃掉过，
+#   当时就是靠回读才发现的。）
+say "回读校验附件"
+LOCAL_SHA="$(sha256sum "$JAR" | cut -d' ' -f1)"
+CHECK="$(api "https://api.github.com/repos/$SLUG/releases/$REL_ID")"
+REMOTE_SHA="$(printf '%s' "$CHECK" \
+    | sed -n 's/.*"digest": *"sha256:\([0-9a-f]\{64\}\)".*/\1/p' | head -1)"
+if [[ -n "$REMOTE_SHA" && "$REMOTE_SHA" != "$LOCAL_SHA" ]]; then
+    die "附件 sha256 与本地不一致：远端=$REMOTE_SHA 本地=$LOCAL_SHA"
+fi
+if [[ -n "$REMOTE_SHA" ]]; then
+    say "附件 sha256 一致：$REMOTE_SHA"
+else
+    warn "没读到 digest 字段，跳过 sha256 校验"
+fi
 
 echo
 say "完成：$URL"
