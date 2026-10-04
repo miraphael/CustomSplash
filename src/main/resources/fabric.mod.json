@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "customsplash",
+  "version": "${version}",
+  "name": "CustomSplash 自定义启动界面",
+  "description": "用图片 / GIF / 视频替换 Minecraft 的早期启动屏、主菜单背景和世界加载界面。把文件丢进 config/customsplash/ 就能用。",
+  "authors": [
+    "Miraphael"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/customsplash/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.customsplash.CustomSplash"
+    ]
+  },
+  "mixins": [
+    "customsplash.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}

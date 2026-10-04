@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.customsplash.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "SplashOverlayMixin",
+    "TitleScreenMixin",
+    "LevelLoadingScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

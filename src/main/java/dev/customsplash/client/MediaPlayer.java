@@ -1,0 +1,334 @@
+package dev.customsplash.client;
+
+import dev.customsplash.CustomSplash;
+import dev.customsplash.media.FrameSource;
+import dev.customsplash.media.VideoFrameSource;
+import dev.customsplash.media.VideoReport;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
+import net.minecraft.util.Identifier;
+
+/**
+ * 把一帧序列（图片 / GIF / 视频）渲染成一张全屏背景。
+ *
+ * <p>动画推进用的是墙上时钟，而不是游戏 tick —— 这样连「游戏还没完全启动」的
+ * 早期加载界面里也能正常播放动画。
+ *
+ * <h2>关于流畅度（重要）</h2>
+ *
+ * <p>视频解码一律在 {@code VideoFrameSource} 的后台线程里做，
+ * 这里的 {@link FrameSource#nextFrame()} **不会阻塞**，只取已经解好的最新帧。
+ * 再加上下面 {@link #writePixels} 的直接内存写入，渲染线程每帧的开销控制在毫秒级。
+ */
+public class MediaPlayer implements AutoCloseable {
+
+    private final Identifier textureId;
+    private final FrameSource source;
+    private final NativeImageBackedTexture texture;
+    private final NativeImage image;
+    private final int width;
+    private final int height;
+
+    /**
+     * 直接指向 {@link NativeImage} 底层堆外内存的视图。
+     *
+     * <p>用 {@code imageId()} 拿到的就是这块内存的地址。之所以要这么绕，
+     * 是因为 {@code setColorArgb(x, y, argb)} 每写一个像素都要算偏移、做边界检查、
+     * 处理 alpha 位序 —— 1280×586 就是 75 万次调用，实测要 9~32 ms。
+     * 直接写内存可以把这个开销压到 1 ms 以内。
+     *
+     * <p>用 {@code IntBuffer} 而不是 {@code ByteBuffer}，是因为反编译
+     * {@code NativeImage.setColor} 能看到它内部就是
+     * {@code MemoryUtil.memIntBuffer(pointer, w*h)} —— 像素是**按 int 存的**，
+     * 存的值是 {@code ColorHelper.toAbgr(argb)}（即 AABBGGRR）。
+     */
+    private final java.nio.IntBuffer pixelBuffer;
+
+    /** ARGB→ABGR 转换的临时缓冲，避免每次上传都新建数组。 */
+    private int[] scratch = new int[0];
+
+    private long lastFrameAt;
+    private boolean closed;
+    private int renderedFrames;
+
+    /**
+     * 上一次 {@code nextFrame()} 返回的那块数组（诊断用）。
+     *
+     * <p>{@code nextFrame()} 在「没有新帧可显示」时会**原样返回上一帧的同一块数组**，
+     * 所以用引用比较就能区分「真的换了新画面」和「推进了但内容没变（画面卡住）」。
+     * 前者才是玩家看到的画面更新率 —— 这是判断流畅度最直接的指标。
+     */
+    private int[] lastPixels;
+
+    /** 真正换上新画面的次数。 */
+    private int freshAdvances;
+    /** 推进了但没有新帧可用（画面停在上一帧）的次数。 */
+    private int staleAdvances;
+    /** {@code render()} 被调用的次数（= 这个界面被渲染的游戏帧数）。 */
+    private int renderCalls;
+
+    public MediaPlayer(String key, FrameSource source) {
+        this.source = source;
+        this.width = source.width();
+        this.height = source.height();
+        this.textureId = CustomSplash.id("dynamic/" + key);
+        this.texture = new NativeImageBackedTexture(() -> "customsplash/" + key, width, height, false);
+        this.image = texture.getImage();
+        this.pixelBuffer = org.lwjgl.system.MemoryUtil.memIntBuffer(image.imageId(),
+                width * height);
+
+        // 第一帧立刻上传
+        writePixels(source.nextFrame());
+        texture.upload();
+
+        MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, texture);
+        this.lastFrameAt = System.currentTimeMillis();
+    }
+
+    public Identifier textureId() {
+        return textureId;
+    }
+
+    public int width() {
+        return width;
+    }
+
+    public int height() {
+        return height;
+    }
+
+    public FrameSource source() {
+        return source;
+    }
+
+    /**
+     * 这块背景实际推进并上传了多少帧。
+     *
+     * <p>和 {@code VideoReport.decoded()} 不是一个东西：那个是**解码线程**解出多少帧，
+     * 这个是**渲染层**真正显示了多少帧。两个数差得越多，说明丢帧越严重。
+     */
+    public int renderedFrames() {
+        return renderedFrames;
+    }
+
+    /** 真正换上新画面的次数（玩家看到的画面更新次数）。 */
+    public int freshAdvances() {
+        return freshAdvances;
+    }
+
+    /** 推进了但没有新帧可用的次数（画面停在上一帧）。 */
+    public int staleAdvances() {
+        return staleAdvances;
+    }
+
+    /** 这个界面被渲染的游戏帧数。 */
+    public int renderCalls() {
+        return renderCalls;
+    }
+
+    /**
+     * 这个媒体有没有「看起来不对」的地方，用于在界面上提醒玩家。
+     *
+     * <p>现在只在**实测**解码跟不上时才提醒（见 {@link VideoFrameSource#report()}）。
+     * 以前这里还会因为「宽度不是 16 的整数倍」「分辨率偏高」就报警，
+     * 那套判据经实测是错的，已经删掉 —— 见 {@code VideoFrameSource} 的类注释。
+     *
+     * @return 需要提醒时返回一句人话，正常时返回 {@code null}
+     */
+    public String warning() {
+        VideoReport report = report();
+        if (report == null || report.isPlayable() && report.level() == VideoReport.Level.OK) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder(report.headline());
+        if (report.detail() != null) {
+            sb.append("。").append(report.detail());
+        }
+        if (report.advice() != null) {
+            sb.append(" ").append(report.advice());
+        }
+        return sb.toString();
+    }
+
+    /** 视频的体检报告；不是视频时返回 {@code null}。 */
+    public VideoReport report() {
+        if (source instanceof VideoFrameSource v) {
+            return v.report();
+        }
+        if (source instanceof dev.customsplash.media.DecoderPool.SharedVideo sv) {
+            return sv.report();
+        }
+        return null;
+    }
+
+    /**
+     * 把 ARGB 像素批量写进 NativeImage 的底层内存。
+     *
+     * <p>两处优化：
+     * <ol>
+     *     <li>直接写内存，跳过 {@code setColorArgb} 的逐像素偏移计算与边界检查；</li>
+     *     <li>一次 {@code put(int[])} 整块拷贝，而不是逐像素 put。</li>
+     * </ol>
+     *
+     * <p>格式换算：我们的像素是 ARGB（AARRGGBB），而 NativeImage 存的是
+     * {@code toAbgr()} 的结果（AABBGGRR），所以要把 R 和 B 对调。
+     * 这个换算在反编译 {@code NativeImage.setColorArgb} 时确认过。
+     */
+    private void writePixels(int[] pixels) {
+        int n = pixels.length;
+        if (scratch.length < n) {
+            scratch = new int[n];
+        }
+        for (int i = 0; i < n; i++) {
+            int argb = pixels[i];
+            // AARRGGBB → AABBGGRR
+            scratch[i] = (argb & 0xFF00FF00)
+                    | ((argb & 0x00FF0000) >>> 16)
+                    | ((argb & 0x000000FF) << 16);
+        }
+        pixelBuffer.clear();
+        pixelBuffer.put(scratch, 0, n);
+    }
+
+    /**
+     * 按时间推进动画帧。
+     *
+     * <p>推进时刻用**累加**而不是「记下当前时间」：
+     * 后者每次都会把多等的那一点时间算进下一次，误差不断累积，
+     * 结果就是视频越播越慢（实测 30fps 的片子只跑到 22fps）。
+     * 累加式让长期平均速率精确等于视频帧率。
+     */
+    private void advanceIfNeeded() {
+        if (source.frameCount() == 1) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        int delay = Math.max(10, source.frameDelayMs());
+        if (now - lastFrameAt < delay) {
+            return;
+        }
+
+        long next = lastFrameAt + delay;
+        // 落后太多说明中间被卡过（比如刚切回界面），直接对齐到当前时间，
+        // 免得接下来一段时间疯狂追帧
+        if (now - next > delay * 5L) {
+            next = now;
+        }
+        lastFrameAt = next;
+
+        // 注意：nextFrame() 绝不阻塞（解码在后台线程），这里只是取最新可用帧
+        int[] pixels = source.nextFrame();
+        boolean fresh = pixels != lastPixels;
+        if (fresh) {
+            freshAdvances++;
+            lastPixels = pixels;
+        } else {
+            staleAdvances++;
+        }
+        // 把「这一次有没有拿到新帧」反馈给解码器：
+        // 如果经常拿不到，说明解码器跟不上，它会自动把播放速率调慢一点，
+        // 让画面永远有新帧可显示（宁可慢几%，也不要一卡一卡）。
+        noteAdvanceToSource(fresh);
+        writePixels(pixels);
+        texture.upload();
+        renderedFrames++;
+    }
+
+    /** 把推进结果反馈给底层的视频源（图片 / GIF 不需要反馈）。 */
+    private void noteAdvanceToSource(boolean fresh) {
+        if (source instanceof VideoFrameSource v) {
+            v.noteAdvance(fresh);
+        } else if (source instanceof dev.customsplash.media.DecoderPool.SharedVideo sv) {
+            sv.videoSource().noteAdvance(fresh);
+        }
+    }
+
+    /**
+     * 把背景画到当前界面。
+     *
+     * @return 是否真的画了内容（没内容时调用方不应该取消原版渲染）
+     */
+    public boolean render(DrawContext context, String fit, float dim) {
+        if (closed) {
+            return false;
+        }
+        renderCalls++;
+        advanceIfNeeded();
+
+        int screenW = context.getScaledWindowWidth();
+        int screenH = context.getScaledWindowHeight();
+
+        float[] r = computeRect(fit, screenW, screenH);
+
+        // contain 模式下先铺黑底，避免出现花花绿绿的原版背景
+        if (!"cover".equalsIgnoreCase(fit) && !"stretch".equalsIgnoreCase(fit)) {
+            context.fill(0, 0, screenW, screenH, 0xFF000000);
+        }
+
+        context.drawTexturedQuad(textureId,
+                Math.round(r[0]), Math.round(r[1]), Math.round(r[2]), Math.round(r[3]),
+                r[4], r[5], r[6], r[7]);
+
+        if (dim > 0.001f) {
+            int alpha = Math.min(255, Math.round(dim * 255.0f)) << 24;
+            context.fill(0, 0, screenW, screenH, alpha);
+        }
+        return true;
+    }
+
+    /**
+     * 计算绘制矩形与纹理坐标。
+     *
+     * @return {@code [x1, y1, x2, y2, u0, u1, v0, v1]}
+     */
+    private float[] computeRect(String fit, int screenW, int screenH) {
+        float sw = screenW;
+        float sh = screenH;
+        float iw = width;
+        float ih = height;
+
+        switch (fit == null ? "cover" : fit.toLowerCase()) {
+            case "stretch" -> {
+                return new float[]{0, 0, sw, sh, 0f, 1f, 0f, 1f};
+            }
+            case "contain" -> {
+                float scale = Math.min(sw / iw, sh / ih);
+                float w = iw * scale;
+                float h = ih * scale;
+                float x = (sw - w) / 2f;
+                float y = (sh - h) / 2f;
+                return new float[]{x, y, x + w, y + h, 0f, 1f, 0f, 1f};
+            }
+            default -> {   // cover
+                float scale = Math.max(sw / iw, sh / ih);
+                float w = iw * scale;
+                float h = ih * scale;
+                float x = (sw - w) / 2f;
+                float y = (sh - h) / 2f;
+                return new float[]{x, y, x + w, y + h, 0f, 1f, 0f, 1f};
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        try {
+            MinecraftClient.getInstance().getTextureManager().destroyTexture(textureId);
+        } catch (Exception ignored) {
+        }
+        try {
+            texture.close();
+        } catch (Exception ignored) {
+        }
+        try {
+            source.close();
+        } catch (Exception ignored) {
+        }
+    }
+}

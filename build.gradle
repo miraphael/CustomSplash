@@ -1,0 +1,60 @@
+plugins {
+    // Loom 版本要求：1.13.x → Gradle 8.14 + JDK 21（本项目使用的组合）
+    //                1.14.x 起需要 Gradle 9；1.17.x 起需要 JDK 25
+    id 'fabric-loom' version '1.13.6'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    // ---- Minecraft 本体与映射 ----
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+
+    // ---- Fabric 加载器与 API ----
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // ---- 视频解码（纯 Java 的 H.264 解码器，用于 MP4）----
+    // include(...) 会把它作为嵌套 jar 一起打包进模组，玩家无需额外安装。
+    include(implementation('org.jcodec:jcodec:0.2.5'))
+    include(implementation('org.jcodec:jcodec-javase:0.2.5'))
+}
+
+processResources {
+    inputs.property 'version', project.version
+
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    it.options.release = 21
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}" }
+    }
+}
