@@ -62,9 +62,11 @@ SLUG="$(printf '%s' "$REMOTE" \
 say "仓库：$SLUG"
 
 # ---------------------------------------------------------------- 工作区
-if [[ -n "$(git status --porcelain)" ]]; then
+# 只看「已跟踪文件」有没有被改过 —— 未跟踪的新文件（比如刚写好的笔记）
+# 不影响发布的包和源码是否一致，所以不拦。
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     warn "工作区有未提交的改动，先提交再发布（否则发出的包和源码对不上）："
-    git status --short
+    git status --short --untracked-files=no
     exit 1
 fi
 
