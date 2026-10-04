@@ -115,13 +115,21 @@ tag_exists() {
 }
 
 # 把本地 tag 推到远端。github.com 不通时退回 Git Data API 建 ref。
+#
+# 快路径上跑 git push 有三个必须加的限制，否则会**卡死**（实测卡了 5 分钟以上）：
+#   - GIT_TERMINAL_PROMPT=0 / GIT_ASKPASS=echo / credential.helper=
+#     关掉凭据交互 —— 远端要认证时 Git Credential Manager 会弹窗等人点，
+#     在脚本里就是永久挂起（进程列表里能看到 git-credential-helper-selector.exe）。
+#   - timeout 25 兜底，连不上时不要无限等。
+#
 # 两个注意点：
 #   1. 建 ref 前**必须**先有远端对象；这里推的是轻量 tag（ref 直接指向 commit），
 #      所以 `git rev-parse` 拿到的就是 commit sha，不需要先建 tag 对象。
 #   2. 绝不能依赖 `POST /releases` 自动建 tag —— 它会用 target_commitish
 #      （默认是仓库默认分支 main）去建，那样 26.2 的 Release 会指到 1.21.11 的提交上。
 push_tag() {
-    if git push origin "$TAG" 2>/dev/null; then
+    if timeout 25 env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=echo \
+            git -c credential.helper= push origin "$TAG" 2>/dev/null; then
         return 0
     fi
     local sha resp
