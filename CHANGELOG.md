@@ -10,6 +10,43 @@
 
 ---
 
+## [1.0.4+26.2] - 2026-10-05
+
+> 本版本即 `customsplash-1.0.4+26.2.jar`，tag 是 `v1.0.4+26.2`。
+
+解决「**游戏刚启动时还是会冒出几帧原版的红色界面（带进度条）**」。
+和 1.21.11 的 `v1.0.4+1.21.11` 是同一处修复，26.x 这边的类名是 `LoadingOverlay`。
+
+### 修复
+
+- **早期启动屏整段接管，一帧原版画面都不再出现。**
+  在 `LoadingOverlay.extractRenderState()` 的 HEAD 拦截并 `cancel()`，
+  原版那段绘制代码一行都不跑。只保留两个必须的副作用：
+
+  - `if (fadeOutAnim >= 2.0F) minecraft.gui.setOverlay(null);` —— 不复制它，
+    加载完会永远停在启动屏上；
+  - 淡出那 1 秒把下面的界面画出来（`gui.screen().extractRenderStateWithTooltipAndSubtitles(...)`
+    + `graphics.nextStratum()`），否则淡完露不出主菜单。
+
+- **未配置这一层时完全交回原版**（`ownsEarlyLoading()`）。
+
+### 为什么盖不住
+
+```java
+// LoadingOverlay.extractRenderState()，启动时的分支（fadeIn == false）
+} else {
+   ARGB.setVector4fFromARGB32(
+       minecraft.gameRenderer.gameRenderState().guiRenderState.clearColorOverride,
+       BRAND_BACKGROUND.getAsInt());          // ← 把整个渲染目标的「清屏色」设成红
+   logoAlpha = 1.0F;
+}
+```
+
+它改的是渲染管线的**清屏色**，压根没走提取出来的绘制指令 —— 我们画多少都盖不住
+「清屏」这一步。以前那版是画在最后盖住，所以淡出阶段会泛红。
+
+---
+
 ## [1.0.3+26.2] - 2026-10-05
 
 > 本版本即 `customsplash-1.0.3+26.2.jar`，tag 是 `v1.0.3+26.2`。
