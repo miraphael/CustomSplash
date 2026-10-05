@@ -286,12 +286,15 @@ def main():
     print("启动:", args.version)
     print("游戏目录:", version_dir)
     print("classpath 条目:", len(cp))
+    # 注意：这里必须**阻塞等待**游戏结束（subprocess.run 而不是 Popen）。
+    # 本脚本经常是作为「后台任务」被拉起的，一旦它 return，外层会把整个进程组收掉，
+    # 游戏会静默退出（窗口消失、日志 0 字节），看起来就像「模组崩了」。
     if args.log:
         with open(args.log, "w", encoding="utf-8", errors="replace") as lf:
-            proc = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT,
-                                    cwd=version_dir)
-            print("pid:", proc.pid, "日志:", args.log)
-            return
+            print("日志:", args.log)
+            subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT,
+                           cwd=version_dir)
+        return
     subprocess.run(cmd, cwd=version_dir)
 
 
