@@ -208,8 +208,8 @@ ffmpeg -i "你的视频.mp4" -vf scale=960:540,fps=15 -c:v libx264 -pix_fmt yuv4
 
 这些是踩坑换来的经验，改动渲染 / 解码相关代码时建议照做：
 
-- **探针必须直接 import 模组的类**（classpath 加 `build/classes/java/main`），
-  否则会出现「探针 100% 正确但模组里写错」——前几轮就是这么翻车的。
+- **测试代码必须直接 import 模组的类**（classpath 加 `build/classes/java/main`），
+  否则会出现「测试里 100% 正确、模组里却写错」的情况。
 - **跑实机前先确认客户端 `config/customsplash.json` 指向的媒体**，
   曾因配置被改成 jpg 而白跑一轮（自检输出「非视频」）。
 - **验证实机画面颜色最可靠的办法**：反射拿 `MediaPlayer.image`（`NativeImage`），
