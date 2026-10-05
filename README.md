@@ -374,8 +374,12 @@ fabric_version=0.141.6+1.21.11
 
   | tag | Release 附件 | 适用游戏 | 分支 |
   |---|---|---|---|
+  | `v1.0.1+1.21.11` | `customsplash-1.0.1+1.21.11.jar` | Minecraft 1.21.11（修复界面出现时先闪一下原版背景） | `main` |
+  | `v1.0.1+26.3` | `customsplash-1.0.1+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.1+26.2` | `customsplash-1.0.1+26.2.jar` | Minecraft 26.2（同上） | `mc26` |
   | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 | `main` |
   | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 | `mc26` |
+  | `v1.0.0+26.3` | `customsplash-1.0.0+26.3.jar` | Minecraft 26.3 | `mc263` |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
   `v<tag>.zip` / `v<tag>.tar.gz`，**不用**额外的源码包附件。
@@ -422,17 +426,19 @@ fabric_version=0.141.6+1.21.11
 另外 26.x 目前**还没有 Yarn 映射**（Fabric 官方对该版本返回 `intermediary: 0.0.0`），
 这意味着它需要单独建一个项目、用官方映射来编译，**不能和 1.21.11 共用同一个 jar**。
 
-### 26.2 已经做好了
+### 26.2 / 26.3 已经做好了
 
-26.2 版本在同一个仓库的 **`mc26` 分支**上单独维护，代码结构一致、功能完全一样，
-差别只在渲染相关的 API 和工具链（**JDK 25 + Gradle 9 + Loom 1.18.2**）。
+26.x 版本在同一个仓库的 **`mc26`（26.2）/ `mc263`（26.3）分支**上单独维护，
+代码结构一致、功能完全一样，差别只在渲染相关的 API 和工具链
+（**JDK 25 + Gradle 9 + Loom 1.18.2**）。
 
-- 分支：<https://github.com/miraphael/CustomSplash/tree/mc26>
-- 下载：Release 页面里 `+26.2` 结尾的那个 jar（`customsplash-1.0.0+26.2.jar`）
+- 分支：<https://github.com/miraphael/CustomSplash/tree/mc26> ·
+  <https://github.com/miraphael/CustomSplash/tree/mc263>
+- 下载：Release 页面里 `+26.2` / `+26.3` 结尾的那个 jar
 - 移植记录（类名对照、踩坑、验证方法）：[`docs/PORTING-26x.md`](docs/PORTING-26x.md)
 
-> 两个分支的 tag / Release 各自独立，互不覆盖：
-> `v1.0.0+1.21.11` 和 `v1.0.0+26.2`。
+> 三条分支的 tag / Release 各自独立，互不覆盖：
+> `v1.0.0+1.21.11`、`v1.0.0+26.2`、`v1.0.0+26.3`。
 
 ---
 
