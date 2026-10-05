@@ -10,6 +10,41 @@
 
 ---
 
+## [1.0.3+26.2] - 2026-10-05
+
+> 本版本即 `customsplash-1.0.3+26.2.jar`，tag 是 `v1.0.3+26.2`。
+
+解决「**进世界还是会有一帧原版画面**」，并顺手接管**退出世界**的界面。
+
+### 修复
+
+- **架构：从「一个界面一个补丁」改成「挂在所有界面唯一的共用入口上」。**
+  这是本版真正的改动。以前是逐个界面写 mixin，靠人工列举 ——
+  1.21.11 那边就是这么把 `ProgressScreen` 漏掉的（26.x 同样有这个类、
+  同样在进世界和退出世界时出现）。现在改成注入
+  `Screen.extractRenderStateWithTooltipAndSubtitles(...)`
+  （26.x 里所有界面共用的唯一入口，而且是 `final` 方法，任何子类都绕不过）：
+
+  1. 让原版的 `extractRenderState()` 照常跑一遍 —— 必须保留它内部的状态切换
+     （`ProgressScreen` 靠它 `setScreen(null)` 进世界，跳过会永远卡在加载界面）；
+  2. 再把我们的画面整屏画上去，盖住这一帧里原版画过的所有东西；
+  3. 最后 `cancel()` 掉原版的背景层（`extractBackground`，也就是全景图 + 模糊 + 压暗）。
+
+  目前接管的界面：`ProgressScreen`、`GenericMessageScreen`、
+  `GenericWaitingScreen`、`LevelLoadingScreen`、`ConnectScreen`。
+  主菜单仍然保留原版按钮，只换背景。
+
+- **退出世界的界面。** 以前完全没处理过，现在一并接管：
+  退出本地世界 → `GenericMessageScreen(正在保存世界)`；
+  退出多人服务器 → `ProgressScreen`。
+
+### 顺带
+
+- 删掉了已被统一入口取代的 `LevelLoadingScreenMixin` / `GenericMessageScreenMixin` /
+  `ConnectScreenMixin` —— 留着会一帧画两遍。
+
+---
+
 ## [1.0.2+26.2] - 2026-10-05
 
 > 本版本即 `customsplash-1.0.2+26.2.jar`，tag 是 `v1.0.2+26.2`。
