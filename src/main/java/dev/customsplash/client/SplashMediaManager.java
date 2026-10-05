@@ -266,6 +266,21 @@ public final class SplashMediaManager {
     }
 
     /**
+     * 早期启动屏这一层归不归我们管（只判断，不绘制）。
+     *
+     * <p>用来决定「要不要把原版那一整段绘制掐掉」。这个判断很要紧：
+     * 原版那段代码里有一句 <b>直接清 framebuffer 颜色附件成 Mojang 红</b>
+     * 的 GPU 命令（{@code clearColorTexture}），绕开了 {@code DrawContext}，
+     * 我们的画面盖不住它。所以只要这一层归我们管，就<b>必须整段掐掉</b>；
+     * 反过来，玩家没配置这一层时要老实交回原版，不能把启动屏变成一片残留画面。
+     */
+    public boolean ownsEarlyLoading() {
+        ensureLoaded();
+        SplashConfig.Layer layer = SplashConfig.instance().earlyLoading;
+        return bootPlayer != null && layer != null && layer.enabled;
+    }
+
+    /**
      * 这个界面要不要整屏换成世界加载层的媒体。
      *
      * <p>由 {@code TransitionScreenMixin}（挂在 {@code Screen.renderWithTooltip} 上）
