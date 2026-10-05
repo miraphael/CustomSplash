@@ -2,68 +2,61 @@ package dev.customsplash.mixin;
 
 import dev.customsplash.client.SplashMediaManager;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.MessageScreen;
-import net.minecraft.client.gui.screen.ReconfiguringScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 进世界 / 连服务器途中的各种「过渡界面」，用世界加载层的媒体整屏盖住。
+ * 进世界 / 退出世界途中的各种「过渡界面」，整屏换成世界加载层的媒体。
  *
- * <p>覆盖的界面（这些都是玩家在点完存档或服务器之后、真正进世界之前会一闪而过的）：
- * <ul>
- *     <li>{@link MessageScreen} —— 「读取世界数据」「加载资源中」</li>
- *     <li>{@link ConnectScreen} —— 「正在连接服务器…」</li>
- *     <li>{@link ReconfiguringScreen} —— 服务器重配置</li>
- * </ul>
+ * <h2>为什么改成挂在 {@code Screen.renderWithTooltip} 上</h2>
  *
- * <p>为什么挂在这里（{@code Screen}）而不是每个界面各写一个 mixin：
- * 这几个类大多**没有**自己声明 {@code renderBackground} / {@code render}，
- * 用的是 {@code Screen} 里的默认实现。Mixin 注入的是方法字节码，
- * 直接对子类注入父类的方法并不可靠；挂在 {@code Screen} 上是唯一稳的写法。
- * 少数自己声明了的类（{@code MessageScreen.renderBackground}、
- * {@code ConnectScreen.render}）由各自的 mixin 单独处理。
+ * <p>以前是「一个界面写一个 mixin」：{@code MessageScreen} 一个、
+ * {@code ConnectScreen} 一个、{@code LevelLoadingScreen} 一个。
+ * 这套做法有个致命的毛病 —— <b>它依赖「我记得有哪些界面」</b>。
+ * 1.21.11 里 {@code ProgressScreen} 就是被这么漏掉的：
+ * 它<b>没有</b>覆写 {@code renderBackground}（用的是 {@code Screen} 的默认实现，
+ * 也就是旋转全景图 + 全屏模糊 + 压暗），同时又<b>有</b>自己的 {@code render}
+ * （所以挂在 {@code Screen.render} 上的那版也盖不住它画的字）。
+ * 两头都刚好躲开，于是点开存档的一瞬间，屏幕上就是原版那张全景图。
+ *
+ * <p>{@code Screen.renderWithTooltip} 是 {@code GameRenderer.render} 对
+ * <b>每一个</b>界面调用的唯一入口（而且它是 {@code final} 的，任何子类都绕不过），
+ * 挂在这里一次就能覆盖全部界面，不用再关心某个界面到底覆写了哪几个方法。
+ * Mixin 注入 {@code final} 方法本身没有任何限制（只是不能覆写它）。
+ *
+ * <h2>为什么要先跑一遍原版的 {@code render()}</h2>
+ *
+ * <p>不能直接把整个 {@code renderWithTooltip} 掐掉。{@code ProgressScreen.render}
+ * 里有一句「加载完成后 {@code setScreen(null)}」的状态切换 ——
+ * 跳过它游戏就会永远卡在加载界面上。所以这里让原版的 {@code render()} 照常执行
+ * （状态切换照做，它画的文字随后被整屏画面盖住），只取消掉后面的原版背景渲染。
  */
 @Mixin(Screen.class)
 public class TransitionScreenMixin {
 
-    /**
-     * 这些界面没有自己的 {@code renderBackground}（用的是 {@code Screen} 的默认版），
-     * 所以在这里取消掉：省掉原版的全景图 + 全屏模糊 + 压暗三步，
-     * 画面由 {@link #customsplash$coverForeground} 统一画。
-     */
-    @Inject(method = "renderBackground", at = @At("HEAD"), cancellable = true)
-    private void customsplash$replaceBackground(DrawContext context, int mouseX, int mouseY,
-                                                float deltaTicks, CallbackInfo ci) {
+    @Inject(method = "renderWithTooltip", at = @At("HEAD"), cancellable = true)
+    private void customsplash$replaceWholeScreen(DrawContext context, int mouseX, int mouseY,
+                                                 float deltaTicks, CallbackInfo ci) {
         Screen self = (Screen) (Object) this;
-        if (needsBackgroundReplaced(self) && SplashMediaManager.get().ownsLevelLoading()) {
-            ci.cancel();
+        if (!SplashMediaManager.get().shouldCoverScreen(self)) {
+            return;
         }
-    }
 
-    /**
-     * 这些界面没有自己的 {@code render}（用的是 {@code Screen} 的默认版，
-     * 界面上的文字控件就是在那里面画出来的），所以在末尾把画面盖上去，
-     * 连它们自己画的文字一起盖住。
-     */
-    @Inject(method = "render", at = @At("TAIL"))
-    private void customsplash$coverForeground(DrawContext context, int mouseX, int mouseY,
-                                              float deltaTicks, CallbackInfo ci) {
-        Screen self = (Screen) (Object) this;
-        if (needsForegroundCovered(self)) {
-            SplashMediaManager.get().renderLevelLoading(context);
-        }
-    }
+        // 1) 原版的 render() 照常跑：保留它内部的状态切换（ProgressScreen 靠它进世界），
+        //    它画出来的文字 / 进度条稍后会被整屏画面盖掉。
+        //    背景（renderBackground）故意不跑 —— 那正是原版全景图的来源。
+        context.createNewRootLayer();
+        self.render(context, mouseX, mouseY, deltaTicks);
 
-    private static boolean needsBackgroundReplaced(Screen screen) {
-        return screen instanceof ConnectScreen || screen instanceof ReconfiguringScreen;
-    }
+        // 2) 我们的画面画在最后，盖住这一帧里原版画过的所有东西。
+        context.createNewRootLayer();
+        SplashMediaManager.get().renderLevelLoading(context);
+        context.drawDeferredElements();
 
-    private static boolean needsForegroundCovered(Screen screen) {
-        return screen instanceof MessageScreen || screen instanceof ReconfiguringScreen;
+        // 3) 取消原版剩余的 renderBackground + render，避免又画一遍。
+        ci.cancel();
     }
 }

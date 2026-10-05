@@ -6,6 +6,12 @@ import dev.customsplash.core.LogGate;
 import dev.customsplash.media.FrameSource;
 import dev.customsplash.media.MediaLoader;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.MessageScreen;
+import net.minecraft.client.gui.screen.ProgressScreen;
+import net.minecraft.client.gui.screen.ReconfiguringScreen;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
+import net.minecraft.client.gui.screen.world.LevelLoadingScreen;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -257,6 +263,49 @@ public final class SplashMediaManager {
         ensureLoaded();
         SplashConfig.Layer layer = SplashConfig.instance().levelLoading;
         return loadingPlayer != null && layer != null && layer.enabled;
+    }
+
+    /**
+     * 这个界面要不要整屏换成世界加载层的媒体。
+     *
+     * <p>由 {@code TransitionScreenMixin}（挂在 {@code Screen.renderWithTooltip} 上）
+     * 在每一帧问一次。
+     *
+     * <p><b>为什么用白名单而不是黑名单：</b>漏掉一个过渡界面，代价只是「闪一帧原版」；
+     * 而漏掉一个需要交互的界面（设置、选择世界……），代价是玩家看不见按钮、
+     * 直接卡死在那个界面。两种失误的代价差太远，所以宁可漏掉也不误伤。
+     */
+    public boolean shouldCoverScreen(Screen screen) {
+        return ownsLevelLoading() && isTransitionScreen(screen);
+    }
+
+    /**
+     * 世界加载 / 连接途中的过渡界面。
+     *
+     * <p>这份名单是<b>从反编译源码里穷举出来的</b>，不是凭印象列的 ——
+     * 以前正是因为凭印象列，才把 {@link ProgressScreen} 漏了。
+     * 1.21.11 里这几种类出现在以下位置：
+     * <ul>
+     *     <li>{@link ProgressScreen} —— {@code MinecraftClient.disconnectWithProgressScreen()}
+     *         （进单人世界前、退出世界、断开多人连接都会走），
+     *         以及 {@code WorldListWidget.WorldEntry} 里点开存档的那一下</li>
+     *     <li>{@link MessageScreen} —— {@code gui.loadingMinecraft}、
+     *         {@code selectWorld.data_read}、{@code selectWorld.resource_load}、
+     *         退出单人世界时的「正在保存世界」</li>
+     *     <li>{@link LevelLoadingScreen} —— 单人 / 多人真正开始进世界时</li>
+     *     <li>{@link ConnectScreen} —— 「正在连接服务器…」</li>
+     *     <li>{@link ReconfiguringScreen} —— 服务器重配置</li>
+     * </ul>
+     *
+     * <p>主菜单（{@code TitleScreen}）不在这里 —— 它要保留原版按钮，
+     * 只换背景，由 {@code TitleScreenMixin} 单独处理。
+     */
+    public static boolean isTransitionScreen(Screen screen) {
+        return screen instanceof ProgressScreen
+                || screen instanceof MessageScreen
+                || screen instanceof LevelLoadingScreen
+                || screen instanceof ConnectScreen
+                || screen instanceof ReconfiguringScreen;
     }
 
     private boolean render(MediaPlayer player, DrawContext context, SplashConfig.Layer layer, float alpha) {

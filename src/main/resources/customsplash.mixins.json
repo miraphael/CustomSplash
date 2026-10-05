@@ -7,10 +7,7 @@
     "SplashOverlayMixin",
     "SplashOverlayAccessor",
     "TitleScreenMixin",
-    "LevelLoadingScreenMixin",
-    "TransitionScreenMixin",
-    "MessageScreenMixin",
-    "ConnectScreenMixin"
+    "TransitionScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
