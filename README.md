@@ -368,12 +368,29 @@ fabric_version=0.141.6+1.21.11
 
 **每个版本对应一个独立的 Release，互相不覆盖。**
 
+### 最新版 1.0.4 改了什么
+
+- **早期启动屏（Mojang 红底 + 标志 + 进度条）一帧都不再漏。**
+  以前是在 `render()` 末尾把画面画上去盖住，但原版那片红**根本不用 `DrawContext` 画**
+  —— 1.21.11 是 `clearColorTexture` 直接清 framebuffer 颜色附件，26.x 是改渲染管线的
+  `clearColorOverride` 清屏色，都不走绘制指令，怎么盖都盖不严；淡出那 1 秒原版还会
+  再铺一层红，和我们的画面同透明度叠加，于是画面泛红。
+  现在改成 **HEAD + cancel 整段接管**，原版那段绘制一行都不跑，只保留
+  `setOverlay(null)` 和淡出阶段补画下面界面这两个必须的副作用。
+- **未配置这一层时完全交回原版**，不会把启动屏变成残留画面。
+- **进世界 / 退世界 / 联机的过渡界面全部接管**（含 `ProgressScreen` 这类以前漏掉的）。
+- 三个版本都用**纯品红底图逐帧抓图**验证过：从游戏画出的第一帧到主菜单，
+  原版红 **0%**；关掉这一层做对照则原版红 **93%**。
+
 - 下载地址固定是 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)，
   永远拿最新版；想装旧版就往下翻。
 - **文件名一律带目标 Minecraft 版本**，格式 `customsplash-<模组版本>+<MC 版本>.jar`：
 
   | tag | Release 附件 | 适用游戏 | 分支 |
   |---|---|---|---|
+  | `v1.0.4+1.21.11` | `customsplash-1.0.4+1.21.11.jar` | Minecraft 1.21.11（早期启动屏整段接管，原版红底一帧不漏；含进/退世界与联机的过渡界面接管） | `main` |
+  | `v1.0.4+26.3` | `customsplash-1.0.4+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.4+26.2` | `customsplash-1.0.4+26.2.jar` | Minecraft 26.2（同上） | `mc26` |
   | `v1.0.2+1.21.11` | `customsplash-1.0.2+1.21.11.jar` | Minecraft 1.21.11（彻底盖住早期启动屏红底、世界加载界面、多人服务器进入界面） | `main` |
   | `v1.0.2+26.3` | `customsplash-1.0.2+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
   | `v1.0.2+26.2` | `customsplash-1.0.2+26.2.jar` | Minecraft 26.2（同上） | `mc26` |
