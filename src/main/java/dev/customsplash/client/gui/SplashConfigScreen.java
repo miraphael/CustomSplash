@@ -110,7 +110,7 @@ public class SplashConfigScreen extends Screen {
 
         // 选择文件
         row.file = Button.builder(Component.literal("未选择"), b ->
-                Minecraft.getInstance().gui.setScreen(
+                Minecraft.getInstance().setScreen(
                         new MediaSelectScreen(this, draft, key, LAYER_LABELS[index]))
         ).bounds(cursor, y, fileW, 20).build();
         row.fileWidth = fileW;
@@ -179,7 +179,7 @@ public class SplashConfigScreen extends Screen {
         if (file == null) {
             return;
         }
-        Minecraft.getInstance().gui.setScreen(
+        Minecraft.getInstance().setScreen(
                 new MediaPreviewScreen(this, file, draft.layer(layerKey)));
     }
 
@@ -267,7 +267,7 @@ public class SplashConfigScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().gui.setScreen(parent);
+        Minecraft.getInstance().setScreen(parent);
     }
 
     @Override

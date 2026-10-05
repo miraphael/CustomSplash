@@ -26,9 +26,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <pre>
  *   // LoadingOverlay.extractRenderState()，启动时的分支（fadeIn == false）
  *   } else {
- *      ARGB.setVector4fFromARGB32(
- *          minecraft.gameRenderer.gameRenderState().guiRenderState.clearColorOverride,
- *          BRAND_BACKGROUND.getAsInt());        // ← 把整个渲染目标的「清屏色」设成红
+ *      minecraft.gameRenderer.getGameRenderState().guiRenderState.clearColorOverride
+ *          = BRAND_BACKGROUND.getAsInt();        // ← 把整个渲染目标的「清屏色」设成红
  *      logoAlpha = 1.0F;
  *   }
  * </pre>
@@ -39,7 +38,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <h2>必须保留的副作用（少一个就出问题）</h2>
  * <ul>
- *     <li>{@code if (fadeOutAnim >= 2.0F) minecraft.gui.setOverlay(null);} ——
+ *     <li>{@code if (fadeOutAnim >= 2.0F) minecraft.setOverlay(null);} ——
  *         原版靠这一句把启动屏摘掉。不复制它，加载完成后会**永远停在启动屏上**。</li>
  *     <li>淡出阶段（{@code fadeOutAnim} 在 1~2 之间，也就是加载完成后那 1 秒）
  *         要把**下面的界面**画出来，否则我们的画面淡掉之后露不出主菜单。</li>
@@ -74,7 +73,7 @@ public abstract class LoadingOverlayMixin implements LoadingOverlayAccessor {
 
         // ★ 原版靠这一句把启动屏摘掉，必须照做，否则加载完成后会永远停在这里。
         if (fadeOutAnim >= 2.0f) {
-            client.gui.setOverlay(null);
+            client.setOverlay(null);
         }
 
         // 淡出阶段要把底下的界面画出来，不然淡完露不出主菜单。
@@ -83,10 +82,10 @@ public abstract class LoadingOverlayMixin implements LoadingOverlayAccessor {
         // stratum。第二步入不能省 —— 原版就是靠它把「压在界面上方」的那层
         // 单独分出来（原版在那里铺红色，我们换成铺自己的画面）。
         if (alpha < 1.0f) {
-            if (client.gui.screen() != null) {
-                client.gui.screen().extractRenderStateWithTooltipAndSubtitles(graphics, 0, 0, partialTick);
+            if (client.screen != null) {
+                client.screen.extractRenderStateWithTooltipAndSubtitles(graphics, 0, 0, partialTick);
             } else {
-                client.gui.hud.extractDeferredSubtitles();
+                client.gui.extractDeferredSubtitles();
             }
             graphics.nextStratum();
         }

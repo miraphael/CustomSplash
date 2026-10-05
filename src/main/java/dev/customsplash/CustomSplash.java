@@ -126,19 +126,19 @@ public class CustomSplash implements ClientModInitializer {
      * <p>界面里操作的是一份配置副本，只有点「保存并返回」才会真正写回并生效；
      * 已经在设置界面（或它的子界面）里时不再重复打开。
      *
-     * <p>26.2 里 {@code Minecraft} 没有 {@code currentScreen} / {@code setScreen}，
-     * 当前界面在 {@code minecraft.gui.screen()}，切换界面走 {@code minecraft.gui.setScreen(...)}。
+     * <p>26.1 里 {@code Minecraft} 自带 {@code screen} 字段与 {@code setScreen(...)}，
+     * 直接用它切换界面。
      */
     private static void openConfigScreen(Minecraft client) {
         if (client == null) {
             return;
         }
-        Screen current = client.gui.screen();
+        Screen current = client.screen;
         if (current instanceof SplashConfigScreen
                 || current instanceof MediaSelectScreen
                 || current instanceof MediaPreviewScreen) {
             return;
         }
-        client.gui.setScreen(new SplashConfigScreen(current, SplashConfig.instance().copy()));
+        client.setScreen(new SplashConfigScreen(current, SplashConfig.instance().copy()));
     }
 }

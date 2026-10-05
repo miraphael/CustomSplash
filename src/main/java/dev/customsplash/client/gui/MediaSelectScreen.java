@@ -252,7 +252,7 @@ public class MediaSelectScreen extends Screen {
 
     /** 重建整个界面（翻页 / 刷新后），保留当前页码。 */
     private void rebuild() {
-        Minecraft.getInstance().gui.setScreen(
+        Minecraft.getInstance().setScreen(
                 new MediaSelectScreen(configScreen, draft, layerKey, layerLabel, page));
     }
 
@@ -262,7 +262,7 @@ public class MediaSelectScreen extends Screen {
     }
 
     private void back() {
-        Minecraft.getInstance().gui.setScreen(new SplashConfigScreen(configScreen.parentScreen(), draft));
+        Minecraft.getInstance().setScreen(new SplashConfigScreen(configScreen.parentScreen(), draft));
     }
 
     private String ellipsize(String text, int maxWidth) {

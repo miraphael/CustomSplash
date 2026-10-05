@@ -221,7 +221,7 @@ public class MediaPreviewScreen extends Screen {
     @Override
     public void onClose() {
         dispose();
-        Minecraft.getInstance().gui.setScreen(parent);
+        Minecraft.getInstance().setScreen(parent);
     }
 
     private void dispose() {
