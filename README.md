@@ -374,6 +374,9 @@ fabric_version=0.141.6+1.21.11
 
   | tag | Release 附件 | 适用游戏 | 分支 |
   |---|---|---|---|
+  | `v1.0.2+1.21.11` | `customsplash-1.0.2+1.21.11.jar` | Minecraft 1.21.11（彻底盖住早期启动屏红底、世界加载界面、多人服务器进入界面） | `main` |
+  | `v1.0.2+26.3` | `customsplash-1.0.2+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.2+26.2` | `customsplash-1.0.2+26.2.jar` | Minecraft 26.2（同上） | `mc26` |
   | `v1.0.1+1.21.11` | `customsplash-1.0.1+1.21.11.jar` | Minecraft 1.21.11（修复界面出现时先闪一下原版背景） | `main` |
   | `v1.0.1+26.3` | `customsplash-1.0.1+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
   | `v1.0.1+26.2` | `customsplash-1.0.1+26.2.jar` | Minecraft 26.2（同上） | `mc26` |
@@ -396,7 +399,7 @@ fabric_version=0.141.6+1.21.11
 ./scripts/release.sh
 ```
 
-脚本会自动拼出 `1.0.1+1.21.11` 这样的完整版本号，然后：检查工作区干净 →
+脚本会自动拼出 `1.0.2+1.21.11` 这样的完整版本号，然后：检查工作区干净 →
 构建 → 打 tag `v<完整版本>` → 建 Release → 把模组 jar 传上去。
 如果该 tag 已经存在，脚本会**拒绝执行**（避免误覆盖已发布的版本），
 除非显式加 `--replace`，那样也只替换**这一个** tag 的 Release。

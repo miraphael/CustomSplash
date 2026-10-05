@@ -220,20 +220,46 @@ public final class SplashMediaManager {
     /** @return true 表示已画了自定义背景，调用方应取消原版背景渲染 */
     public boolean renderTitleScreen(DrawContext context) {
         ensureLoaded();
-        return render(titlePlayer, context, SplashConfig.instance().titleScreen);
+        return render(titlePlayer, context, SplashConfig.instance().titleScreen, 1f);
     }
 
+    /**
+     * 世界加载层：画在界面**所有内容之上**（不只是在背景层）。
+     *
+     * <p>以前只换背景，结果原版在 {@code render()} 里画的区块进度图、
+     * 「正在下载地形」那行字和绿色进度条全都压在我们的画面上 —— 玩家看到的
+     * 就是「进世界的动画里还有原版画面」。现在改成画在最后，整屏盖住。
+     */
     public boolean renderLevelLoading(DrawContext context) {
         ensureLoaded();
-        return render(loadingPlayer, context, SplashConfig.instance().levelLoading);
+        return render(loadingPlayer, context, SplashConfig.instance().levelLoading, 1f);
     }
 
-    public boolean renderEarlyLoading(DrawContext context) {
+    /**
+     * 早期启动屏：整屏盖住原版那片品牌底（默认就是 Mojang 红）、
+     * Mojang Studios 标志和加载进度条。
+     *
+     * @param alpha 不透明度。原版在资源加载完成后有 1 秒淡出，这里跟着一起淡，
+     *              淡完正好露出下面的主菜单。
+     */
+    public boolean renderEarlyLoading(DrawContext context, float alpha) {
         ensureLoaded();
-        return render(bootPlayer, context, SplashConfig.instance().earlyLoading);
+        return render(bootPlayer, context, SplashConfig.instance().earlyLoading, alpha);
     }
 
-    private boolean render(MediaPlayer player, DrawContext context, SplashConfig.Layer layer) {
+    /**
+     * 世界加载这一层归不归我们管（只判断，不绘制）。
+     *
+     * <p>用来决定「要不要取消原版的背景渲染」。背景取消后由 {@link #renderLevelLoading}
+     * 在界面末尾统一画，所以这里千万**不能**顺手画一遍 —— 那会一帧画两次。
+     */
+    public boolean ownsLevelLoading() {
+        ensureLoaded();
+        SplashConfig.Layer layer = SplashConfig.instance().levelLoading;
+        return loadingPlayer != null && layer != null && layer.enabled;
+    }
+
+    private boolean render(MediaPlayer player, DrawContext context, SplashConfig.Layer layer, float alpha) {
         if (player == null || layer == null) {
             // 这一层没启用、或者没找到媒体文件 —— 让原版自己画，这是应该的。
             return false;
@@ -248,7 +274,7 @@ public final class SplashMediaManager {
             boolean first = player.renderCalls() == 0;
             long t0 = System.nanoTime();
 
-            player.render(context, layer.fit, layer.dim);
+            player.render(context, layer.fit, layer.dim, alpha);
 
             if (first) {
                 long ms = (System.nanoTime() - t0) / 1_000_000L;

@@ -5,8 +5,12 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "SplashOverlayMixin",
+    "SplashOverlayAccessor",
     "TitleScreenMixin",
-    "LevelLoadingScreenMixin"
+    "LevelLoadingScreenMixin",
+    "TransitionScreenMixin",
+    "MessageScreenMixin",
+    "ConnectScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
