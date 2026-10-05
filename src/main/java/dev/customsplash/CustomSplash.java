@@ -109,6 +109,15 @@ public class CustomSplash implements ClientModInitializer {
                 ));
 
         LOGGER.info("[CustomSplash] 已加载，媒体目录: {}", SplashConfig.mediaDir());
+
+        // 立刻在后台把三块界面的媒体加载好。
+        //
+        // 这一步必须在这里做，不能等界面第一次渲染时再做：读文件、探测 MP4、
+        // 解第一帧加起来要几百毫秒到 1 秒，如果压在「界面刚出现」那一刻，
+        // 渲染线程会卡住，屏幕上还是原版界面 —— 玩家看到的就是
+        // 「先闪一下原版背景，再切到视频」。放到这里则落在窗口刚创建、
+        // 还没开始出帧的空窗期里，完全看不见。
+        SplashMediaManager.get().preloadAsync();
     }
 
     /**

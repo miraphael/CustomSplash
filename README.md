@@ -356,6 +356,7 @@ fabric_version=0.161.0+26.2
   | tag | Release 附件 | 适用游戏 |
   |---|---|---|
   | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 |
+  | `v1.0.1+26.2` | `customsplash-1.0.1+26.2.jar` | Minecraft 26.2（修复界面出现时先闪一下原版背景） |
   | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的

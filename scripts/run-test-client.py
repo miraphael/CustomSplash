@@ -19,9 +19,16 @@ PCL 是图形界面的启动器，没法在无人值守的脚本里点按钮。�
 
 用法
 ----
-    python run-test-client.py --version "26.2-Fabric 0.19.5测试模组" \
+    python run-test-client.py --version "26.3-Fabric 0.19.5测试模组" \
         --minecraft "<.minecraft 绝对路径>" [--java <java.exe>] [--extra-jvm ...] \
-        [--log <日志文件>]
+        [--extra-game ...] [--log <日志文件>]
+
+`--extra-game` 用来追加游戏参数，比如直接进某个存档（验证世界加载界面时很有用）：
+
+    --extra-game --quickPlaySingleplayer --extra-game "新的世界"
+
+注意 version json 里的 quick play 规则必须为 false（见下面 FEATURES 的注释），
+`--extra-game` 是绕过那套规则手动追加的，所以只传**一条** quick play 参数。
 
 注意
 ----
@@ -188,6 +195,8 @@ def main():
     ap.add_argument("--minecraft", required=True, help=".minecraft 目录的绝对路径")
     ap.add_argument("--java", default=None, help="java.exe 路径")
     ap.add_argument("--extra-jvm", action="append", default=[], help="追加的 JVM 参数，可重复")
+    ap.add_argument("--extra-game", action="append", default=[],
+                    help="追加的游戏参数（拼在 mainClass 之后），可重复")
     ap.add_argument("--log", default=None, help="把 stdout/stderr 写进这个文件")
     ap.add_argument("--dry-run", action="store_true", help="只打印命令，不启动")
     args = ap.parse_args()
@@ -268,7 +277,7 @@ def main():
 
     java_exe = args.java or "java"
     cmd = [java_exe] + [sub(a) for a in jvm] + args.extra_jvm
-    cmd += [data["mainClass"]] + game
+    cmd += [data["mainClass"]] + game + args.extra_game
 
     if args.dry_run:
         print(" ".join(cmd))
