@@ -6,11 +6,8 @@
   "client": [
     "LoadingOverlayMixin",
     "LoadingOverlayAccessor",
-    "LevelLoadingScreenMixin",
     "TitleScreenMixin",
-    "TransitionScreenMixin",
-    "GenericMessageScreenMixin",
-    "ConnectScreenMixin"
+    "TransitionScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

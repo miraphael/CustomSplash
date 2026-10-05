@@ -6,6 +6,12 @@ import dev.customsplash.core.LogGate;
 import dev.customsplash.media.FrameSource;
 import dev.customsplash.media.MediaLoader;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.gui.screens.GenericMessageScreen;
+import net.minecraft.client.gui.screens.GenericWaitingScreen;
+import net.minecraft.client.gui.screens.LevelLoadingScreen;
+import net.minecraft.client.gui.screens.ProgressScreen;
+import net.minecraft.client.gui.screens.Screen;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -257,6 +263,47 @@ public final class SplashMediaManager {
         ensureLoaded();
         SplashConfig.Layer layer = SplashConfig.instance().levelLoading;
         return loadingPlayer != null && layer != null && layer.enabled;
+    }
+
+    /**
+     * 这个界面要不要整屏换成世界加载层的媒体。
+     *
+     * <p>由 {@code TransitionScreenMixin}（挂在
+     * {@code Screen.extractRenderStateWithTooltipAndSubtitles} 上）每帧问一次。
+     *
+     * <p><b>为什么用白名单而不是黑名单：</b>漏掉一个过渡界面，代价只是「闪一帧原版」；
+     * 而漏掉一个需要交互的界面（设置、选择世界……），代价是玩家看不见按钮、
+     * 直接卡死在那个界面。两种失误的代价差太远，所以宁可漏掉也不误伤。
+     */
+    public boolean shouldCoverScreen(Screen screen) {
+        return ownsLevelLoading() && isTransitionScreen(screen);
+    }
+
+    /**
+     * 世界加载 / 连接途中的过渡界面。
+     *
+     * <p>这份名单是<b>从反编译源码里穷举出来的</b>，不是凭印象列的 ——
+     * 1.21.11 那边正是因为凭印象列，把 {@code ProgressScreen} 漏了，
+     * 导致点开存档时会闪一帧原版全景图。26.x 里这几种类出现在：
+     * <ul>
+     *     <li>{@link ProgressScreen} —— {@code Minecraft.disconnectWithProgressScreen()}
+     *         （进世界前、退出世界、断开多人连接），以及世界列表里点开存档那一下</li>
+     *     <li>{@link GenericMessageScreen} —— {@code gui.loadingMinecraft}、
+     *         {@code Gui.SAVING_LEVEL}（退出世界时的「正在保存世界」）</li>
+     *     <li>{@link GenericWaitingScreen} —— 服务端等待类界面</li>
+     *     <li>{@link LevelLoadingScreen} —— 单人 / 多人真正开始进世界时</li>
+     *     <li>{@link ConnectScreen} —— 「正在连接服务器…」</li>
+     * </ul>
+     *
+     * <p>主菜单（{@code TitleScreen}）不在这里 —— 它要保留原版按钮，
+     * 只换背景，由 {@code TitleScreenMixin} 单独处理。
+     */
+    public static boolean isTransitionScreen(Screen screen) {
+        return screen instanceof ProgressScreen
+                || screen instanceof GenericMessageScreen
+                || screen instanceof GenericWaitingScreen
+                || screen instanceof LevelLoadingScreen
+                || screen instanceof ConnectScreen;
     }
 
     private boolean render(MediaPlayer player, GuiGraphicsExtractor context, SplashConfig.Layer layer, float alpha) {
