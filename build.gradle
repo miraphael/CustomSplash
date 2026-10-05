@@ -12,8 +12,8 @@ plugins {
     id 'net.fabricmc.fabric-loom' version '1.18.2'
 }
 
-// 版本号 = 模组版本 + 目标 Minecraft 版本，例如 1.0.0+26.2。
-// 这样产物名 customsplash-1.0.0+26.2.jar 一眼就能看出是给哪个游戏版本的，
+// 版本号 = 模组版本 + 目标 Minecraft 版本，例如 1.0.0+26.3。
+// 这样产物名 customsplash-1.0.0+26.3.jar 一眼就能看出是给哪个游戏版本的，
 // 和 1.21.11 那份放在一起也不会混淆。
 // 这个 version 也会被 processResources 展开进 fabric.mod.json。
 version = "${project.mod_version}+${project.minecraft_version}"
@@ -36,10 +36,10 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     // 26.x 的客户端 jar 里就是 net/minecraft/... 官方类名，游戏不再混淆，
     // 所以**故意不写 mappings**（no-remap 插件也不会去找它）。
-    // Fabric 对 26.2 返回的 intermediary 就是 0.0.0。
+    // Fabric 对 26.x 返回的 intermediary 就是 0.0.0。
 
     // ---- Fabric 加载器与 API ----
-    // 官方 26.2 示例用的就是 implementation（不混淆，不需要 modImplementation 的额外重映射）
+    // 官方 26.x 示例用的就是 implementation（不混淆，不需要 modImplementation 的额外重映射）
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
