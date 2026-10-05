@@ -229,7 +229,13 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 # 用 python 拼 JSON payload：CHANGELOG 段落里可能有引号 / 反斜杠 / 换行，
 # 手工拼 JSON 很容易转义出错（本文件原来就是靠「正文里不出现双引号」绕开的）。
 PYTHON="$(command -v python3 || command -v python || true)"
-PAYLOAD_FILE="$(mktemp)"
+# payload 固定放在 build/ 下，不用 mktemp：
+# 某些 Windows 环境的 TMPDIR 会让 mktemp 返回带盘符的路径（C:\...\Temp\...），
+# 这种路径交给 rm 会被安全策略拒绝、返回非 0，在 set -e 下脚本会当场中断，
+# 后面的「上传附件」就再也不会执行 —— 表现为 Release 建好了但一个附件都没有。
+PAYLOAD_FILE="build/release-payload.json"
+mkdir -p build
+: > "$PAYLOAD_FILE"
 if [[ -n "$PYTHON" ]]; then
     "$PYTHON" - "$PAYLOAD_FILE" "$FULL_VERSION" "$MC_VERSION" "$TAG" "$BRANCH" \
         "$DRAFT" "$PRERELEASE" <<'PYEOF'
@@ -288,7 +294,7 @@ else
     RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
             -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":\"$BODY\",\"target_commitish\":\"$BRANCH\",\"draft\":$DRAFT,\"prerelease\":$PRERELEASE}")"
 fi
-rm -f "$PAYLOAD_FILE"
+rm -f "$PAYLOAD_FILE" || true
 
 REL_ID="$(printf '%s' "$RESP" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' | head -1)"
 URL="$(printf '%s' "$RESP" | sed -n 's/.*"html_url": *"\([^"]*\)".*/\1/p' | head -1)"
