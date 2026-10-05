@@ -8,10 +8,10 @@
 #   ./scripts/release.sh --replace       仅替换「当前这个版本」的 Release
 #
 # 版本号由 gradle.properties 的两行拼出来：
-#     mod_version=1.0.0  +  minecraft_version=26.2
-#        → 完整版本 1.0.0+26.2
-#        → tag     v1.0.0+26.2
-#        → 产物    customsplash-1.0.0+26.2.jar
+#     mod_version=1.0.0  +  minecraft_version=26.1
+#        → 完整版本 1.0.0+26.1
+#        → tag     v1.0.0+26.1
+#        → 产物    customsplash-1.0.0+26.1.jar
 # 文件名和 tag 都带目标 MC 版本，这样同时维护多个游戏版本也不会混淆。
 #
 # Release 只上传一个主 jar 附件；源码由 GitHub 自动附带的
@@ -127,7 +127,7 @@ tag_exists() {
 #   1. 建 ref 前**必须**先有远端对象；这里推的是轻量 tag（ref 直接指向 commit），
 #      所以 `git rev-parse` 拿到的就是 commit sha，不需要先建 tag 对象。
 #   2. 绝不能依赖 `POST /releases` 自动建 tag —— 它会用 target_commitish
-#      （默认是仓库默认分支 main）去建，那样 26.2 的 Release 会指到 1.21.11 的提交上。
+#      （默认是仓库默认分支 main）去建，那样 26.1 的 Release 会指到 1.21.11 的提交上。
 push_tag() {
     if timeout 25 env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=echo \
             git -c credential.helper= push origin "$TAG" 2>/dev/null; then
@@ -159,17 +159,17 @@ if tag_exists; then
 fi
 
 # ---------------------------------------------------------------- JDK 检查
-# 26.2 要 JDK 25（1.21.x 只要 21）。版本不够时 Gradle 会抛一堆看不懂的错，
+# 26.1 要 JDK 25（1.21.x 只要 21）。版本不够时 Gradle 会抛一堆看不懂的错，
 # 所以这里先给一句人话。
 if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
     JAVA_MAJOR="$("${JAVA_HOME}/bin/java" -version 2>&1 \
         | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
     if [[ -n "$JAVA_MAJOR" && "$JAVA_MAJOR" -lt 25 ]]; then
-        die "26.2 需要 JDK 25 或更高，当前 JAVA_HOME 是 JDK $JAVA_MAJOR（$JAVA_HOME）"
+        die "26.1 需要 JDK 25 或更高，当前 JAVA_HOME 是 JDK $JAVA_MAJOR（$JAVA_HOME）"
     fi
     say "JDK：$JAVA_MAJOR（$JAVA_HOME）"
 else
-    warn "没有设置 JAVA_HOME，将用 PATH 里的 java；26.2 需要 JDK 25 或更高"
+    warn "没有设置 JAVA_HOME，将用 PATH 里的 java；26.1 需要 JDK 25 或更高"
 fi
 
 # ---------------------------------------------------------------- 构建
@@ -183,7 +183,7 @@ fi
 [[ -f "$JAR" ]] || die "构建完成但找不到产物 $JAR"
 say "产物：$JAR（$(du -h "$JAR" | cut -f1)）"
 
-# 防止「文件名写着 +26.2、包里却是别的版本」这种错版
+# 防止「文件名写着 +26.1、包里却是别的版本」这种错版
 if command -v unzip >/dev/null 2>&1; then
     BUILT_VERSION="$(unzip -p "$JAR" fabric.mod.json \
         | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 \
@@ -304,7 +304,7 @@ fi
 #
 # 文件名要**自己 URL 编码**：名字是拼在 query string 里的，
 # 而 `+` 在 query string 里表示空格 —— 于是
-# `customsplash-1.0.0+26.2.jar` 会被 GitHub 存成 `customsplash-1.0.0.26.2.jar`
+# `customsplash-1.0.0+26.1.jar` 会被 GitHub 存成 `customsplash-1.0.0.26.1.jar`
 # （空格又被它规整成点），和本地文件名对不上，用户看着也困惑。
 # 用 ${var//+/%2B} 把 + 转义掉即可（这个替换是 bash 内建的，不用调外部命令）。
 upload_asset() {

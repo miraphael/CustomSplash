@@ -2,7 +2,7 @@
 
 这份文档说明 CustomSplash 怎么发新版本，以及**为什么不会覆盖旧版本**。
 
-> **本文档对应 Minecraft 26.2 这条分支（`mc26`）。**
+> **本文档对应 Minecraft 26.1 这条分支（`mc261`）。**
 > 1.21.11 那条分支是 `main`，发布流程完全一样，只是工具链不同（JDK 21 + Gradle 8）。
 
 ---
@@ -12,29 +12,29 @@
 ```
 gradle.properties:
     mod_version       = 1.0.0
-    minecraft_version = 26.2
+    minecraft_version = 26.1
             │
-            ▼  拼成完整版本 1.0.0+26.2
-   git tag v1.0.0+26.2
+            ▼  拼成完整版本 1.0.0+26.1
+   git tag v1.0.0+26.1
             │
             ▼
-   GitHub Release "v1.0.0+26.2"
+   GitHub Release "v1.0.0+26.1"
             │
-            └── 附件 customsplash-1.0.0+26.2.jar
+            └── 附件 customsplash-1.0.0+26.1.jar
 ```
 
 - **`mod_version` 只写模组自己的语义化版本，不要写 MC 版本**；
   MC 版本从 `minecraft_version` 取，两者由构建脚本自动拼起来，**只在一个地方维护**。
 - **文件名和 tag 一律带目标 Minecraft 版本**，这样同时维护多个游戏版本时不会混淆，
   用户也不会下错版本。
-- 发 1.0.1 时只会新建 `v1.0.1+26.2`，**完全不碰** `v1.0.0+26.2` 的
+- 发 1.0.1 时只会新建 `v1.0.1+26.1`，**完全不碰** `v1.0.0+26.1` 的
   tag、Release 和附件。
 - **Release 只挂一个模组 jar，不上传 `-sources.jar`**：源码由 GitHub 在 Release 页面
   底部自动附带的 `v<tag>.zip` / `v<tag>.tar.gz` 提供，同样带版本号，功能上完全够用，
   没必要再多一个附件。因此 `build.gradle` 里**没有** `withSourcesJar()`，
   `release.sh` 也只传主 jar。
-- **同一个仓库里两个版本线互不干扰**：`main` 上的 `v1.0.0+1.21.11` 和
-  `mc26` 上的 `v1.0.0+26.2` 是**两个不同的 tag**，各自的 Release、各自的附件，
+- **同一个仓库里多条版本线互不干扰**：不同 Minecraft 版本线的 tag 各自独立
+  （例如 `v1.0.4+1.21.11` 和 `v1.0.4+26.1`），各自的 Release、各自的附件，
   谁也覆盖不了谁。这就是 tag / 文件名带 MC 版本的意义。
 
 这样做的直接好处：用户点进 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)
@@ -46,7 +46,7 @@ gradle.properties:
 
 ### 0. 先确认工具链
 
-26.2 需要 **JDK 25**（1.21.x 只要 21）。没设 `JAVA_HOME` 时脚本会用 `PATH` 里的 java，
+26.1 需要 **JDK 25**（1.21.x 只要 21）。没设 `JAVA_HOME` 时脚本会用 `PATH` 里的 java，
 版本不够会在 Gradle 配置阶段报一堆看不懂的错，所以脚本会先检查并给一句人话：
 
 ```bash
@@ -59,7 +59,7 @@ export JAVA_HOME="C:/mcdev/tools/jdk25.0.1"     # 按本机实际路径改
 
 ```properties
 mod_version=1.0.1
-minecraft_version=26.2     # 目标游戏版本，换版本时才动
+minecraft_version=26.1     # 目标游戏版本，换版本时才动
 ```
 
 ### 2. 提交
@@ -85,14 +85,14 @@ git commit -m "发布 1.0.1"
 脚本会依次做这些事：
 
 1. 从 `gradle.properties` 读出 `mod_version` 和 `minecraft_version`，
-   拼出完整版本 `1.0.1+26.2` 和 tag `v1.0.1+26.2`
+   拼出完整版本 `1.0.1+26.1` 和 tag `v1.0.1+26.1`
 2. 检查工作区是否干净（有未提交的改动就直接退出，避免发出一个和源码对不上的包）
 3. **检查这个 tag 是否已经存在**（走 API 查，见下面「为什么要用 API」）—— 存在就拒绝执行
 4. 检查 JDK 版本是否 ≥ 25
 5. `./gradlew build` 构建
 6. **校验 jar 内 `fabric.mod.json` 的版本号和文件名一致**（防错版）
 7. 打 tag 并推送
-8. 创建 GitHub Release（显式带 `target_commitish`），上传 `customsplash-1.0.1+26.2.jar`
+8. 创建 GitHub Release（显式带 `target_commitish`），上传 `customsplash-1.0.1+26.1.jar`
    （源码 zip / tar.gz 由 GitHub 自动附带，脚本不上传）
 9. 打印 Release 地址
 
@@ -105,7 +105,7 @@ git commit -m "发布 1.0.1"
 - tag 存在性检查走 `api.github.com`（不通的时候才是真的不通，语义明确）；
 - 推 tag 先试 `git push`，失败就退回 `POST /git/refs` 建 ref；
 - 建 Release 时**显式传 `target_commitish`**，否则 GitHub 会用仓库默认分支（`main`）
-  去建 tag，26.2 的 Release 就挂到 1.21.11 的提交上了。
+  去建 tag，26.1 的 Release 就挂到 1.21.11 的提交上了。
 
 ### 可选参数
 
@@ -145,11 +145,11 @@ export GITHUB_TOKEN=ghp_xxxxxxxx     # 方式一
 
 ## 自动化方案（GitHub Actions）
 
-`mc26` 分支上只带了**一个**工作流：
+`mc261` 分支上只带了**一个**工作流：
 
 | 文件 | 触发时机 | 做什么 |
 |---|---|---|
-| `.github/workflows/build.yml` | 推送到 `mc26` / PR | 用 JDK 25 构建一遍，确认没写坏，产物作为 artifact 上传 |
+| `.github/workflows/build.yml` | 推送到 `mc261` / PR | 用 JDK 25 构建一遍，确认没写坏，产物作为 artifact 上传 |
 
 > **为什么这条分支没有 `release.yml`：**
 > `main`（1.21.11）上有一个「推 tag 就自动建 Release」的工作流。这条分支故意不放，
@@ -181,13 +181,13 @@ export GITHUB_TOKEN=ghp_xxxxxxxx     # 方式一
 | 分支 | 目标 | 工具链 | 产物 |
 |---|---|---|---|
 | `main` | Minecraft **1.21.11** | JDK 21 + Gradle 8 + Loom 1.13.6 | `customsplash-1.0.0+1.21.11.jar` |
-| `mc26` | Minecraft **26.2** | JDK 25 + Gradle 9 + Loom 1.18.2 | `customsplash-1.0.0+26.2.jar` |
+| `mc261` | Minecraft **26.1** | JDK 25 + Gradle 9 + Loom 1.18.2 | `customsplash-1.0.4+26.1.jar` |
 
-- 两边可以都用 `mod_version=1.0.0`，因为 tag 会自动带上 MC 版本
-  （`v1.0.0+1.21.11` 和 `v1.0.0+26.2`），**不会撞车，各自的 Release 互不覆盖**。
+- 各条线可以都用同一个 `mod_version`，因为 tag 会自动带上 MC 版本
+  （`v1.0.4+1.21.11` 和 `v1.0.4+26.1`），**不会撞车，各自的 Release 互不覆盖**。
 - 产物名同理，用户一眼就能看出该下哪个。
-- **两个分支的历史是独立的**（`mc26` 是从零新建的根提交），
+- **各条分支的历史是独立的**（`mc261` 是从零新建的根提交），
   所以不存在「合并不上」的问题，也不需要互相 rebase。
 
-> 以后要支持 26.3 时，从 `mc26` 开一条新分支即可，
+> 以后要支持更新的 Minecraft 版本时，从这条分支开一条新分支即可，
 > 只要 `minecraft_version` 和 `fabric_version` 跟着换。
