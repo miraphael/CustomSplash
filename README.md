@@ -1,15 +1,16 @@
-# CustomSplash · 自定义 Minecraft 启动界面（Minecraft 26.2 版）
+# CustomSplash · 自定义 Minecraft 启动界面（Minecraft 26.3 版）
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-26.2-3C8527?style=flat-square)](https://www.minecraft.net/)
+[![Minecraft](https://img.shields.io/badge/Minecraft-26.3-3C8527?style=flat-square)](https://www.minecraft.net/)
 [![Fabric](https://img.shields.io/badge/Loader-Fabric-DBB69B?style=flat-square)](https://fabricmc.net/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/miraphael/CustomSplash?style=flat-square&color=2ea44f)](https://github.com/miraphael/CustomSplash/releases)
 
 用**图片 / GIF / 视频**替换 Minecraft 的启动界面，让游戏一打开就是你自己想要的画面。
 
-> **这份代码是给 Minecraft 26.2 的。** 26.x 是一次渲染底层的大重构
+> **这份代码是给 Minecraft 26.3 的。** 26.x 是一次渲染底层的大重构
 > （游戏不再混淆、绘制架构换成 extractor 模式），和 1.21.x 的代码**不能共用**，
-> 所以单独维护一份。想要 1.21.11 的版本，请到 Release 页面找 `+1.21.11` 结尾的那个 jar。
+> 所以单独维护多份。想要别的版本，请到 Release 页面找对应后缀的 jar
+（`+1.21.11` / `+26.2` / `+26.3`）。
 
 ---
 
@@ -41,7 +42,7 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 
 ## 效果预览
 
-以下都是 **Minecraft 26.2 实机运行截图**（背景用的是同一个 MP4 视频）：
+以下都是 **Minecraft 26.3 实机运行截图**（背景用的是同一个 MP4 视频）：
 
 | 早期启动屏已被替换 | 主菜单已被替换 |
 |---|---|
@@ -82,15 +83,15 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 
 | 组件 | 版本 |
 |---|---|
-| Minecraft | **26.2**（Java 版） |
+| Minecraft | **26.3**（Java 版） |
 | Java | **25**（26.x 的运行时就是 Java 25，启动器一般会自己准备好） |
 | Fabric Loader | **0.19.0 以上** |
-| Fabric API | 26.2 对应的版本（实测用 `0.161.0+26.2`，[下载](https://modrinth.com/mod/fabric-api)） |
+| Fabric API | 26.3 对应的版本（实测用 `0.161.0+26.3`，[下载](https://modrinth.com/mod/fabric-api)） |
 
 ### 安装步骤
 
 1. 到 [**Releases**](https://github.com/miraphael/CustomSplash/releases) 页面，
-   下载文件名带 **`+26.2`** 的那个 jar。
+   下载文件名带 **`+26.3`** 的那个 jar。
 2. 把它放进 `.minecraft/mods/` 文件夹。
 3. 启动一次游戏 —— 模组会自动创建下面这两个东西：
    ```
@@ -100,7 +101,7 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 4. 接下来看下面的「怎么打开」。
 
 > **文件名里的版本号怎么看**：格式是 `customsplash-<模组版本>+<Minecraft 版本>.jar`，
-> 例如 `customsplash-1.0.0+26.2.jar` 就是「模组 1.0.0 版，给 Minecraft 26.2 用的」。
+> 例如 `customsplash-1.0.0+26.3.jar` 就是「模组 1.0.0 版，给 Minecraft 26.3 用的」。
 > **别下错游戏版本** —— 每个 Minecraft 版本对应一个独立的 jar，装错了游戏会拒绝加载。
 
 > 装完可以在 **模组菜单（Mod Menu）** 里看到它，作者是 **Miraphael**。
@@ -244,7 +245,7 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 | 隔行扫描（interlaced） | 转码时加 `-vf yadif` |
 | 纯音频 MP4（没有视频轨） | 换一个文件 |
 
-实测（26.2，1280×586 / 30fps 的片子）纯解码约 29 ms/帧，
+实测（26.x，1280×586 / 30fps 的片子）纯解码约 29 ms/帧，
 播放速率自适应后稳定在 28~30 帧/秒，画面更新率接近 100%。
 
 > 想了解「为什么能播得流畅」「一卡一卡是怎么根治的」「哪些坑只有逐像素比对才发现」，
@@ -281,11 +282,11 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 可以，把不需要的那层 `enabled` 设成 `false`。
 
 **Q：和别的换背景的模组冲突吗？**
-如果对方也是通过 Mixin 改同一个方法（26.2 里是 `extractBackground`），
+如果对方也是通过 Mixin 改同一个方法（26.x 里是 `extractBackground`），
 可能会有冲突（谁后注入谁生效）。可以先关掉本模组对应的那一层试试。
 
 **Q：装了之后游戏起不来 / 报「不兼容」？**
-确认三件事：游戏是 **26.2**、Java 是 **25**、jar 文件名带 **`+26.2`**。
+确认三件事：游戏是 **26.3**、Java 是 **25**、jar 文件名带 **`+26.3`**。
 26.x 的 jar 和 1.21.x 的**完全不通用**。
 
 ---
@@ -313,9 +314,9 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 ./gradlew build          # Windows 用 gradlew.bat build
 ```
 
-产物在 `build/libs/customsplash-1.0.0+26.2.jar`（约 1.9 MB，已内置视频解码库）。
+产物在 `build/libs/customsplash-1.0.0+26.3.jar`（约 1.9 MB，已内置视频解码库）。
 
-> 文件名里的 `1.0.0` 是模组版本，`26.2` 是目标 Minecraft 版本，
+> 文件名里的 `1.0.0` 是模组版本，`26.3` 是目标 Minecraft 版本，
 > 由 `gradle.properties` 的 `mod_version` 和 `minecraft_version` 自动拼出来。
 > 构建**不会**再单独产出 `-sources.jar` —— 需要看源码请直接下载仓库源码，
 > 或从 Release 页面底部 GitHub 自动附带的源码 zip / tar.gz 取。
@@ -330,17 +331,17 @@ Minecraft 从双击启动到进入世界，中间会经过三块「等待画面�
 
 ### 想换 Minecraft 版本？
 
-**同一大版本内**（比如 26.2 → 26.3）改 `gradle.properties` 里这几行即可，
+**同一代之内**（比如 26.1 → 26.2）改 `gradle.properties` 里这几行即可，
 代码基本不用动：
 
 ```properties
-minecraft_version=26.2
+minecraft_version=26.3
 loader_version=0.19.5
-fabric_version=0.161.0+26.2
+fabric_version=0.161.0+26.3
 ```
 
 > ⚠️ **跨大版本（1.21.x ↔ 26.x）是另一回事** —— 类名和绘制 API 全变了，
-> 得改代码。这次从 1.21.11 移植到 26.2 的完整对照表在
+> 得改代码。从 1.21.11 移植到 26.x 的完整对照表在
 > [`docs/PORTING-26x.md`](docs/PORTING-26x.md) 里。
 
 ---
@@ -357,6 +358,7 @@ fabric_version=0.161.0+26.2
   |---|---|---|
   | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 |
   | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 |
+  | `v1.0.0+26.3` | `customsplash-1.0.0+26.3.jar` | Minecraft 26.3 |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
   `v<tag>.zip` / `v<tag>.tar.gz`，**不用**额外的源码包附件。
@@ -371,7 +373,7 @@ fabric_version=0.161.0+26.2
 ./scripts/release.sh
 ```
 
-脚本会自动拼出 `1.0.1+26.2` 这样的完整版本号，然后：检查工作区干净 →
+脚本会自动拼出 `1.0.1+26.3` 这样的完整版本号，然后：检查工作区干净 →
 构建 → 打 tag `v<完整版本>` → 建 Release → 把模组 jar 传上去。
 如果该 tag 已经存在，脚本会**拒绝执行**（避免误覆盖已发布的版本），
 除非显式加 `--replace`，那样也只替换**这一个** tag 的 Release。
@@ -383,7 +385,7 @@ fabric_version=0.161.0+26.2
 
 ## 26.x 相对 1.21.x 都变了什么（摘要）
 
-| 1.21.11（旧版代码） | 26.2（本项目） |
+| 1.21.11（旧版代码） | 26.3（本项目） |
 |---|---|
 | `client.MinecraftClient` | `client.Minecraft` |
 | `client.gui.DrawContext` | `client.gui.GuiGraphicsExtractor` |
@@ -400,6 +402,22 @@ fabric_version=0.161.0+26.2
 | 需要 Yarn 映射（游戏是混淆的） | **游戏不再混淆，直接用官方类名，没有 Yarn** |
 
 完整的逐项对照、踩到的坑和验证方法见 [`docs/PORTING-26x.md`](docs/PORTING-26x.md)。
+
+---
+
+## 26.3 相对 26.2 又变了什么
+
+26.3 的**界面绘制 API 和 26.2 是同一套**，所以这份代码是从 26.2 那条分支直接开出来的，
+只动了三处被 26.3 换掉的底层接口：
+
+| 26.2 | 26.3 |
+|---|---|
+| `org.lwjgl.glfw.GLFW.GLFW_KEY_F8` | `InputConstants.KEY_F8`（26.3 把窗口库从 GLFW 换成了 SDL，`org.lwjgl.glfw` 整个包不再是编译依赖） |
+| `InputConstants.Type.KEYSYM` / `SCANCODE` | `InputConstants.Type.KEYBOARD`（两个枚举合并成一个） |
+| `Util.getPlatform().openPath(Path)` | `com.mojang.blaze3d.Blaze3D.openPath(Path)`（`openUri` 同理） |
+
+工具链、Loom 插件、`NativeImage` 内存布局、Mixin 注入点**全部不变**。
+如果你是从 26.2 的源码往 26.3 搬，照上面三行改就够了。
 
 ---
 
@@ -452,7 +470,7 @@ CustomSplash-mc26/
 └── docs/
     ├── TECH-NOTES.md              实现细节与实测数据
     ├── RELEASING.md               发布流程
-    ├── PORTING-26x.md             从 1.21.11 移植到 26.2 的完整记录
+    ├── PORTING-26x.md             从 1.21.11 移植到 26.x 的完整记录
     └── screenshots/               实际运行截图
 ```
 

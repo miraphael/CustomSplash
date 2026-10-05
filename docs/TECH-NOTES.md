@@ -3,9 +3,10 @@
 这份文档记录**实现细节与实测数据**，面向想改代码、做移植或想搞清楚「为什么这么写」的人。
 普通使用请看 [README](../README.md)。
 
-> **本文档对应 Minecraft 26.2。** 解码、流畅度、验证方法论那几节与 1.21.11 版本同源
-> （jcodec 部分完全一致），但**界面渲染相关的 API 是 26.2 独有的**，
-> 详见文末「六、26.2 的渲染层差异」。跨版本移植请另看 [PORTING-26x.md](PORTING-26x.md)。
+> **本文档对应 Minecraft 26.3。** 解码、流畅度、验证方法论那几节与 1.21.11 / 26.2 版本同源
+> （jcodec 部分完全一致），但**界面渲染相关的 API 是 26.x 独有的**，
+> 详见文末「六、26.2 的渲染层差异」；26.3 相对 26.2 又动了三处底层接口，
+> 见「七、26.3 相对 26.2 的差异」。跨版本移植请另看 [PORTING-26x.md](PORTING-26x.md)。
 
 ---
 
@@ -319,4 +320,85 @@ Screen.extractRenderStateWithTooltipAndSubtitles(...)   ← 框架调用这个
 > （无障碍引导），**不是 `TitleScreen`**。自动切屏前别假设当前是哪个界面。
 >
 > 验证完**必须把临时代码删干净再重新构建**，否则会把调试钩子发出去。
+
+---
+
+## 七、26.3 相对 26.2 的差异
+
+26.3 的**界面绘制架构和 26.2 完全一样**（还是两段式 `extractBackground` +
+`extractRenderState`，上下文还是 `GuiGraphicsExtractor`），所以这一版是从 26.2 那条分支
+直接开出来的，`gradle.properties` / `fabric.mod.json` 换个目标版本号就能编。
+真正要改的只有下面三处。
+
+### 1. GLFW 被 SDL 取代
+
+26.3 把窗口库从 GLFW 换成了 SDL：编译依赖里 `org.lwjgl.glfw` 整个包都没了，
+换成 `org.lwjgl:lwjgl-sdl:3.4.3`。于是
+
+```java
+// 26.2
+import org.lwjgl.glfw.GLFW;
+... GLFW.GLFW_KEY_F8
+```
+
+编译直接报「程序包 org.lwjgl.glfw 不存在」。改法是换成 Minecraft 自己的按键常量
+（**键值完全相同**，都是 295）：
+
+```java
+// 26.3
+... InputConstants.KEY_F8
+```
+
+> 如果你在别处用了 GLFW 做窗口操作（设标题、改光标、读剪贴板），
+> 26.3 里这些得改用 SDL 或 Minecraft 自己的封装，`GLFW.*` 一律编不过。
+
+### 2. `InputConstants.Type` 的两个枚举合并了
+
+`Type` 里原来的 `KEYSYM` / `SCANCODE` 在 26.3 合并成了一个 **`KEYBOARD`**，
+现在只剩 `KEYBOARD` 和 `MOUSE`：
+
+```java
+// 26.2
+new KeyMapping("key.xxx", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY)
+// 26.3
+new KeyMapping("key.xxx", InputConstants.Type.KEYBOARD, InputConstants.KEY_F8, CATEGORY)
+```
+
+### 3. 打开文件夹 / 打开链接搬到了 `Blaze3D`
+
+`Util.OS` 上的 `openPath(Path)` / `openUri(URI)` 在 26.3 挪到了
+`com.mojang.blaze3d.Blaze3D`，并且变成一对静态方法：
+
+```java
+// 26.2
+net.minecraft.util.Util.getPlatform().openPath(dir);
+// 26.3
+com.mojang.blaze3d.Blaze3D.openPath(dir);
+```
+
+`Util.getPlatform()` 本身还在，但返回的 `OS` 枚举只剩 `telemetryName()`，
+别再指望从它上面拿「打开文件」的能力。
+
+### 4. 加载遮罩（LoadingOverlay）在哪儿
+
+26.3 里 `Minecraft` 上**没有 `getOverlay()`** 了，加载遮罩挂在 **`Gui.overlay()`** 上：
+
+```java
+mc.gui.screen()          // 当前界面，如 TitleScreen
+mc.gui.overlay()         // 加载遮罩，正常玩时是 null
+```
+
+`Overlay` 这个基类本身还在 `net.minecraft.client.gui.screens` 包下，
+`LoadingOverlay` 仍然是它的子类。
+
+> 这一点写自动化验证脚本时会咬人：`TitleScreen` 已经就位、但 `gui.overlay()`
+> 还是 `LoadingOverlay` 的那几秒里，截出来的是「Mojang 标志 + 进度条」，
+> **不是主菜单**。实测从 `TitleScreen` 出现到遮罩消失大约 3~5 秒。
+> 截图前要同时判断 `screen instanceof TitleScreen && overlay() == null`。
+
+### 5. 工具链没变
+
+JDK **25** + Gradle **9.7** + Loom **1.18.2**（no-remap 变体），和 26.2 完全一样，
+`build.gradle` 一行都不用改。`NativeImage` 的内存布局也还是 ABGR，
+整块写显存那条快路径照旧。
 

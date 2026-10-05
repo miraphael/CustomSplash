@@ -5,19 +5,21 @@
 
 下载地址：[Releases](https://github.com/miraphael/CustomSplash/releases)
 
-> **这份 CHANGELOG 属于 Minecraft 26.2 那条线。** 1.21.11 那条线在仓库的
-> `main` 分支上单独维护，两边的代码不能共用，发布也是各自独立的 tag / Release。
+> **这份 CHANGELOG 属于 Minecraft 26.3 那条线（分支 `mc263`）。**
+> 1.21.11 在 `main`、26.2 在 `mc26`，各自单独维护、各自发布，
+> 三边的代码不能共用，tag / Release 也互不覆盖。
 
 ---
 
-## [1.0.0+26.2] - 2026-10-04
+## [1.0.0+26.3] - 2026-10-05
 
-首个面向 **Minecraft 26.2 + Fabric** 的版本。
+首个面向 **Minecraft 26.3 + Fabric** 的版本。功能与 26.2 那条线完全一致，
+这一版的主要工作是跟上游把被换掉的底层接口改掉，并在 26.3 上重新实机验证一遍。
 
 > 发布文件命名规则：`customsplash-<模组版本>+<Minecraft 版本>.jar`。
-> 本版本即 `customsplash-1.0.0+26.2.jar`，tag 同样是 `v1.0.0+26.2`。
+> 本版本即 `customsplash-1.0.0+26.3.jar`，tag 同样是 `v1.0.0+26.3`。
 > Release 只挂这一个 jar；源码用页面底部 GitHub 自动附带的
-> `v1.0.0+26.2.zip` / `.tar.gz`。
+> `v1.0.0+26.3.zip` / `.tar.gz`。
 
 ### 新增
 
@@ -38,7 +40,7 @@
 
 ### 性能
 
-以下优化与 1.21.11 版本同源，在 26.2 上重新实机验证有效：
+流畅度优化与 26.2 版本同源，在 26.3 上重新实机验证有效：
 
 - **B 帧重排**：jcodec 按解码顺序返回帧，H.264 的 B 帧会让画面「忽前忽后」。
   加了按显示时间戳排序的重排窗口后，帧序正确率从 50.4% 提到 **100%**。
@@ -52,30 +54,26 @@
   缩放耗时从 19 ms/帧降到 **3.15 ms/帧**。
 - **直接写显存 + 复用画布**：整块写入 `NativeImage` 底层内存，替代逐像素调用。
 
-### 移植说明（26.2 与 1.21.11 的差异）
+### 移植说明（26.3 相对 26.2 的差异）
 
-26.x 是一次渲染底层的大重构，**和 1.21.x 不能共用同一个 jar**。主要差异：
+26.3 的**界面绘制 API 和 26.2 是同一套**，所以这一版是从 `mc26` 分支直接开出来的，
+只改了三处被 26.3 换掉的底层接口：
 
-- 游戏**不再混淆**，客户端 jar 里直接是 `net.minecraft.*` 官方类名，
-  Fabric 对 26.2 不提供 Yarn 映射，因此直接按官方类名编译。
-- 构建必须用 **`net.fabricmc.fabric-loom`**（no-remap 变体），
-  用 `fabric-loom` 会报 `Configuration 'mappings' has no dependencies`。
-- 工具链升到 **JDK 25 + Gradle 9.7 + Loom 1.18.2**。
-- 界面绘制从 `render(...)` 改成两段式
-  `extractRenderStateWithTooltipAndSubtitles` → `extractBackground(...)` + `extractRenderState(...)`；
-  绘制上下文 `DrawContext` 改名 `GuiGraphicsExtractor`。
-- 纹理类 `NativeImageBackedTexture` → `DynamicTexture`，
-  但 `NativeImage` 的内存布局（ABGR）没变，整块写显存的做法可以原样复用。
+| 26.2 | 26.3 | 原因 |
+|---|---|---|
+| `org.lwjgl.glfw.GLFW.GLFW_KEY_F8` | `InputConstants.KEY_F8` | 26.3 把窗口库从 GLFW 换成 SDL，`org.lwjgl.glfw` 整个包不再是编译依赖 |
+| `InputConstants.Type.KEYSYM` / `SCANCODE` | `InputConstants.Type.KEYBOARD` | 两个枚举合并成一个 |
+| `Util.getPlatform().openPath(Path)` | `com.mojang.blaze3d.Blaze3D.openPath(Path)` | 打开文件夹 / 链接的工具方法搬到了 Blaze3D（`openUri` 同理） |
 
-完整的逐项对照表、踩坑记录与验证方法见
-[docs/PORTING-26x.md](docs/PORTING-26x.md)。
+工具链（JDK 25 + Gradle 9.7 + Loom 1.18.2）、Loom 插件 id、Mixin 注入点、
+`NativeImage` 内存布局**全部不变**。
 
 ### 说明
 
 - 模组只在真的有问题时输出告警，并做了两层防误报：同一问题只说一次；
   流畅度要连续观察约 6 秒才下结论（避开启动阶段的 CPU 抢占噪声）。
-- 26.2 引入的 Vulkan 图形后端与模组无关。没有 Vulkan 驱动时日志里会出现
+- 26.x 引入的 Vulkan 图形后端与模组无关。没有 Vulkan 驱动时日志里会出现
   `[Vulkan Loader] ERROR: vkGetPhysicalDeviceProperties: Invalid physicalDevice`，
   **不影响 OpenGL 路径**，可以忽略。
 
-[1.0.0+26.2]: https://github.com/miraphael/CustomSplash/releases/tag/v1.0.0+26.2
+[1.0.0+26.3]: https://github.com/miraphael/CustomSplash/releases/tag/v1.0.0+26.3

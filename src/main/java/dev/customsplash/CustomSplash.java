@@ -18,7 +18,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,10 +37,15 @@ import org.slf4j.LoggerFactory;
  * <p>游戏里按 <b>F8</b>（可在「按键设置 → CustomSplash」里改）或输入
  * {@code /customsplash config} 就能打开设置界面，在里面挑图片 / 视频。
  *
- * <p><b>这是给 Minecraft 26.2 的版本。</b>26.x 起游戏不再混淆，类名就是官方名
+ * <p><b>这是给 Minecraft 26.3 的版本。</b>26.x 起游戏不再混淆，类名就是官方名
  * （{@code Minecraft} 而不是 {@code MinecraftClient}，{@code KeyMapping} 而不是
  * {@code KeyBinding}，渲染方法也从 {@code render} 改成了 {@code extractRenderState}），
  * 所以这份代码和 1.21.11 那份不能共用，需要分开维护。
+ *
+ * <p>26.3 相对 26.2 又换掉了窗口库：**GLFW 被 SDL 取代**，
+ * 于是 {@code org.lwjgl.glfw.GLFW} 整个包都不再是编译依赖，
+ * 按键常量要改用 {@code InputConstants.KEY_*}，
+ * {@code InputConstants.Type} 的 {@code KEYSYM} / {@code SCANCODE} 也合并成了 {@code KEYBOARD}。
  */
 public class CustomSplash implements ClientModInitializer {
 
@@ -51,18 +55,24 @@ public class CustomSplash implements ClientModInitializer {
     /**
      * 按键分类。
      *
-     * <p>26.2 里 {@code KeyMapping.Category} 是个 record，只能通过
+     * <p>26.x 里 {@code KeyMapping.Category} 是个 record，只能通过
      * {@code Category.register(Identifier)} 创建；同一 id 重复注册会抛异常。
      * 分类显示名走语言文件 {@code key.category.customsplash.main}。
      */
     public static final KeyMapping.Category KEY_CATEGORY =
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 
-    /** 打开设置界面的快捷键，默认 F8。 */
+    /**
+     * 打开设置界面的快捷键，默认 F8。
+     *
+     * <p>26.3 里窗口库换成了 SDL，GLFW 不再是依赖，所以不能写
+     * {@code GLFW.GLFW_KEY_F8}。改用 Minecraft 自己的按键常量
+     * {@code InputConstants.KEY_F8}（键值和旧的 GLFW 一致）。
+     */
     public static final KeyMapping OPEN_CONFIG_KEY = new KeyMapping(
             "key.customsplash.open_config",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_F8,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_F8,
             KEY_CATEGORY);
 
     public static Identifier id(String path) {
@@ -117,7 +127,7 @@ public class CustomSplash implements ClientModInitializer {
      * <p>界面里操作的是一份配置副本，只有点「保存并返回」才会真正写回并生效；
      * 已经在设置界面（或它的子界面）里时不再重复打开。
      *
-     * <p>26.2 里 {@code Minecraft} 没有 {@code currentScreen} / {@code setScreen}，
+     * <p>26.x 里 {@code Minecraft} 没有 {@code currentScreen} / {@code setScreen}，
      * 当前界面在 {@code minecraft.gui.screen()}，切换界面走 {@code minecraft.gui.setScreen(...)}。
      */
     private static void openConfigScreen(Minecraft client) {

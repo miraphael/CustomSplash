@@ -103,9 +103,9 @@ public final class MediaLibrary {
         try {
             Path dir = SplashConfig.mediaDir();
             Files.createDirectories(dir);
-            // 26.2 里 Util.getOperatingSystem() 改名为 Util.getPlatform()，
-            // 返回的 OS 枚举提供 openPath(Path) / openFile(File) / openUri(URI)。
-            net.minecraft.util.Util.getPlatform().openPath(dir);
+            // 26.3 里 Util.OS 上的 openPath / openUri 被搬到了 com.mojang.blaze3d.Blaze3D，
+            // 变成一对静态方法：Blaze3D.openPath(Path) / Blaze3D.openUri(URI)。
+            com.mojang.blaze3d.Blaze3D.openPath(dir);
         } catch (Exception e) {
             CustomSplash.LOGGER.warn("[CustomSplash] 打开媒体目录失败: {}", e.toString());
         }

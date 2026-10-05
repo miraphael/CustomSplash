@@ -1,8 +1,8 @@
-# 从 Minecraft 1.21.11 移植到 26.2 的完整记录
+# 从 Minecraft 1.21.11 移植到 26.x 的完整记录
 
 > 这份文档记录的是**已经做完的事**，不是计划。
 > 内容全部来自实际编译报错 + 反编译官方 jar 逐项核对，不是凭记忆写的。
-> 目标版本是 **26.2**（不是 26.3）。
+> 正文对应 **26.2**；26.2 → 26.3 的增量改动很短，见文末「九、26.2 → 26.3 的增量」。
 
 ---
 
@@ -351,5 +351,32 @@ textureManager.release(id);
 ## 八、回到 1.21.11 那份
 
 1.21.11 的代码在同一个仓库的 `main` 分支（`CustomSplash/` 目录），
-26.2 的在 26.x 分支（`CustomSplash-mc26/` 目录）。
-两边**各自独立构建、独立发布**，产物名带 `+<MC 版本>` 后缀，tag 也不会撞车。
+26.x 的在 `mc26` / `mc263` 分支（都放在 `CustomSplash-mc26/` 目录下）。
+各条线**各自独立构建、独立发布**，产物名带 `+<MC 版本>` 后缀，tag 也不会撞车。
+
+---
+
+## 九、26.2 → 26.3 的增量
+
+26.3 的**界面绘制架构和 26.2 是同一套**（两段式 `extractBackground` /
+`extractRenderState`，上下文还是 `GuiGraphicsExtractor`），工具链也一样
+（JDK 25 + Gradle 9.7 + Loom 1.18.2 no-remap）。所以从 `mc26` 开一条新分支，
+把 `gradle.properties` / `fabric.mod.json` 的目标版本号一换，编一次，
+按编译错误改下面三处就够了。
+
+| 26.2 写法 | 26.3 写法 | 报错长什么样 |
+|---|---|---|
+| `org.lwjgl.glfw.GLFW.GLFW_KEY_F8` | `InputConstants.KEY_F8` | 「程序包 org.lwjgl.glfw 不存在」 |
+| `InputConstants.Type.KEYSYM` / `.SCANCODE` | `InputConstants.Type.KEYBOARD` | 「找不到符号: 变量 KEYSYM」 |
+| `Util.getPlatform().openPath(Path)` | `com.mojang.blaze3d.Blaze3D.openPath(Path)` | 「找不到符号: 方法 openPath(Path)」 |
+
+原因分别是：26.3 把窗口库从 GLFW 换成了 SDL（`org.lwjgl.glfw` 整个包不再是编译依赖）；
+`Type` 里两个键盘枚举合并成了一个；打开文件夹 / 链接的工具方法从 `Util.OS` 搬到了 `Blaze3D`。
+
+**Mixin 一行都没改** —— 三个注入点（`TitleScreen.extractBackground`、
+`LevelLoadingScreen.extractBackground` / `extractRenderState`、`LoadingOverlay.extractRenderState`）
+在 26.3 里签名照旧。
+
+> 另外 26.3 里 `Minecraft` 上**没有 `getOverlay()`** 了，加载遮罩挂在 `Gui.overlay()` 上。
+> 这只影响写自动化验证脚本，不影响模组本身。细节见
+> [TECH-NOTES.md](TECH-NOTES.md) 第七节。
