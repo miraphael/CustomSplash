@@ -220,16 +220,75 @@ say "推送 tag"
 push_tag
 
 # ---------------------------------------------------------------- 建 Release
-# 正文里刻意不出现双引号，避免手工拼 JSON 时转义出错。
-BODY="## CustomSplash $FULL_VERSION\\n\\n**Minecraft $MC_VERSION · Fabric**\\n\\n下载下面的 \`customsplash-$FULL_VERSION.jar\`，放进 \`.minecraft/mods/\` 即可。\\n\\n- 支持 PNG / JPG / GIF / MP4（H.264）\\n- 游戏内按 \`F8\` 打开设置界面\\n- 安装与使用说明见仓库首页 README\\n"
-
 # target_commitish 显式写当前分支：多版本分支共用一个仓库时，
 # 不写就会用默认分支（main），Release 会挂到另一个版本的提交上。
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
+# 正文 = 通用下载说明 + CHANGELOG 里本版本的段落 —— 这样 Release 页面的
+# 「版本介绍」永远和 CHANGELOG 同步，不用每次手工补。
+# 用 python 拼 JSON payload：CHANGELOG 段落里可能有引号 / 反斜杠 / 换行，
+# 手工拼 JSON 很容易转义出错（本文件原来就是靠「正文里不出现双引号」绕开的）。
+PYTHON="$(command -v python3 || command -v python || true)"
+PAYLOAD_FILE="$(mktemp)"
+if [[ -n "$PYTHON" ]]; then
+    "$PYTHON" - "$PAYLOAD_FILE" "$FULL_VERSION" "$MC_VERSION" "$TAG" "$BRANCH" \
+        "$DRAFT" "$PRERELEASE" <<'PYEOF'
+import json, os, sys
+
+out, full, mc, tag, branch, draft, prerelease = sys.argv[1:8]
+
+body = ("## CustomSplash %s\n\n"
+        "**Minecraft %s · Fabric**\n\n"
+        "下载下面的 `customsplash-%s.jar`，放进 `.minecraft/mods/` 即可。\n\n"
+        "- 支持 PNG / JPG / GIF / MP4（H.264）\n"
+        "- 游戏内按 `F8` 打开设置界面\n"
+        "- 安装与使用说明见仓库首页 README\n") % (full, mc, full)
+
+# 从 CHANGELOG.md 抽本版本的段落（段头形如 `## [1.0.4]` 或 `## [1.0.4+26.3]`）。
+if os.path.isfile("CHANGELOG.md"):
+    mod = full.split("+", 1)[0]
+    lines = open("CHANGELOG.md", encoding="utf-8").read().splitlines()
+    start = None
+    for i, ln in enumerate(lines):
+        if not ln.startswith("## ["):
+            continue
+        head = ln[4:].split("]", 1)[0].strip()
+        if head == full or head == mod or head.startswith(mod + "+"):
+            start = i + 1
+            break
+    if start is not None:
+        sec = []
+        for ln in lines[start:]:
+            if ln.startswith("## ["):
+                break
+            sec.append(ln)
+        sec = "\n".join(sec).strip()
+        if sec:
+            body += "\n### 本版更新\n\n" + sec + "\n"
+
+with open(out, "w", encoding="utf-8") as f:
+    json.dump({"tag_name": tag, "name": tag, "body": body,
+               "target_commitish": branch,
+               "draft": draft == "true", "prerelease": prerelease == "true"}, f)
+PYEOF
+    if [[ -s "$PAYLOAD_FILE" ]]; then
+        say "Release 正文：已附上 CHANGELOG 里 $FULL_VERSION 的更新说明"
+    else
+        warn "生成 Release 正文失败，退回通用说明"
+    fi
+fi
+
 say "创建 GitHub Release"
-RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
-        -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":\"$BODY\",\"target_commitish\":\"$BRANCH\",\"draft\":$DRAFT,\"prerelease\":$PRERELEASE}")"
+if [[ -s "$PAYLOAD_FILE" ]]; then
+    RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
+            -H "Content-Type: application/json" --data-binary "@$PAYLOAD_FILE")"
+else
+    # 没有 python 时的兜底：只写通用说明（正文里刻意不出现双引号）。
+    BODY="## CustomSplash $FULL_VERSION\\n\\n**Minecraft $MC_VERSION · Fabric**\\n\\n下载下面的 \`customsplash-$FULL_VERSION.jar\`，放进 \`.minecraft/mods/\` 即可。\\n\\n- 支持 PNG / JPG / GIF / MP4（H.264）\\n- 游戏内按 \`F8\` 打开设置界面\\n- 安装与使用说明见仓库首页 README\\n"
+    RESP="$(api -X POST "https://api.github.com/repos/$SLUG/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":\"$BODY\",\"target_commitish\":\"$BRANCH\",\"draft\":$DRAFT,\"prerelease\":$PRERELEASE}")"
+fi
+rm -f "$PAYLOAD_FILE"
 
 REL_ID="$(printf '%s' "$RESP" | sed -n 's/.*"id": *\([0-9]*\).*/\1/p' | head -1)"
 URL="$(printf '%s' "$RESP" | sed -n 's/.*"html_url": *"\([^"]*\)".*/\1/p' | head -1)"
