@@ -349,16 +349,38 @@ fabric_version=0.161.0+26.2
 
 **每个版本对应一个独立的 Release，互相不覆盖。**
 
+### 最新版 1.0.4 改了什么
+
+- **早期启动屏（Mojang 红底 + 标志 + 进度条）一帧都不再漏。**
+  26.x 这边原版那片红**不是用提取出来的绘制指令画的**，而是改渲染管线的
+  `clearColorOverride` 清屏色（`LoadingOverlay.extractRenderState`），
+  所以「画在末尾盖住」怎么都盖不严；淡出那 1 秒原版还会再铺一层红，
+  和我们的画面同透明度叠加，于是画面泛红。
+  现在改成 **HEAD + cancel 整段接管**，原版那段绘制一行都不跑，
+  只保留 `gui.setOverlay(null)` 和淡出阶段补画下面界面这两个必须的副作用。
+- **未配置这一层时完全交回原版**，不会把启动屏变成残留画面。
+- **进世界 / 退世界 / 联机的过渡界面全部接管**（含 `ProgressScreen` 这类以前漏掉的）。
+- 用**纯品红底图逐帧抓图**验证过：从游戏画出的第一帧到主菜单，原版红 **0%**；
+  关掉这一层做对照则原版红 **93%**（就是那片红 + 白 logo + 进度条）。
+
 - 下载地址固定是 [Releases 页面](https://github.com/miraphael/CustomSplash/releases)，
   永远拿最新版；想装旧版就往下翻。
 - **文件名一律带目标 Minecraft 版本**，格式 `customsplash-<模组版本>+<MC 版本>.jar`：
 
-  | tag | Release 附件 | 适用游戏 |
-  |---|---|---|
-  | `v1.0.2+26.2` | `customsplash-1.0.2+26.2.jar` | Minecraft 26.2（彻底盖住早期启动屏红底、世界加载界面、多人服务器进入界面） |
-  | `v1.0.1+26.2` | `customsplash-1.0.1+26.2.jar` | Minecraft 26.2（修复界面出现时先闪一下原版背景） |
-  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 |
-  | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 |
+  | tag | Release 附件 | 适用游戏 | 分支 |
+  |---|---|---|---|
+  | `v1.0.4+26.2` | `customsplash-1.0.4+26.2.jar` | Minecraft 26.2（早期启动屏整段接管，原版红底一帧不漏；含进/退世界与联机的过渡界面接管） | `mc26` |
+  | `v1.0.4+26.3` | `customsplash-1.0.4+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.4+1.21.11` | `customsplash-1.0.4+1.21.11.jar` | Minecraft 1.21.11（同上） | `main` |
+  | `v1.0.2+26.2` | `customsplash-1.0.2+26.2.jar` | Minecraft 26.2（彻底盖住早期启动屏红底、世界加载界面、多人服务器进入界面） | `mc26` |
+  | `v1.0.2+26.3` | `customsplash-1.0.2+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.2+1.21.11` | `customsplash-1.0.2+1.21.11.jar` | Minecraft 1.21.11（同上） | `main` |
+  | `v1.0.1+26.2` | `customsplash-1.0.1+26.2.jar` | Minecraft 26.2（修复界面出现时先闪一下原版背景） | `mc26` |
+  | `v1.0.1+26.3` | `customsplash-1.0.1+26.3.jar` | Minecraft 26.3（同上） | `mc263` |
+  | `v1.0.1+1.21.11` | `customsplash-1.0.1+1.21.11.jar` | Minecraft 1.21.11（同上） | `main` |
+  | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 | `mc26` |
+  | `v1.0.0+26.3` | `customsplash-1.0.0+26.3.jar` | Minecraft 26.3 | `mc263` |
+  | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 | `main` |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
   `v<tag>.zip` / `v<tag>.tar.gz`，**不用**额外的源码包附件。
