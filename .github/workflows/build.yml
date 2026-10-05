@@ -3,8 +3,8 @@ name: Build
 # 每次推送到 mc26 / 每个 PR 都构建一遍，确认没写坏。
 # 产物会作为 workflow artifact 上传，方便下载来测试。
 #
-# 这条分支是 Minecraft 26.2 的代码，工具链和 main（1.21.11）**不一样**：
-#   26.2 需要 JDK 25 + Gradle 9，1.21.11 只要 JDK 21 + Gradle 8。
+# 这条分支是 Minecraft 26.1.1 的代码，工具链和 main（1.21.11）**不一样**：
+#   26.1.1 需要 JDK 25 + Gradle 9，1.21.11 只要 JDK 21 + Gradle 8。
 #   改动这个文件前先看一眼 docs/PORTING-26x.md 里的版本矩阵。
 
 on:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 26.2 必须用 JDK 25 —— Loom 1.17 起就要求 25 了，21 会在配置阶段直接失败。
+      # 26.1.1 必须用 JDK 25 —— Loom 1.17 起就要求 25 了，21 会在配置阶段直接失败。
       - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
@@ -43,7 +43,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: customsplash-26.2-${{ github.sha }}
+          name: customsplash-26.1.1-${{ github.sha }}
           # build.gradle 没有 withSourcesJar()，这里只会匹配到模组主 jar
           path: build/libs/*.jar
           if-no-files-found: error

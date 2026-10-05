@@ -3,9 +3,9 @@
 这份文档记录**实现细节与实测数据**，面向想改代码、做移植或想搞清楚「为什么这么写」的人。
 普通使用请看 [README](../README.md)。
 
-> **本文档对应 Minecraft 26.2。** 解码、流畅度、验证方法论那几节是这套实现通用的
-> （jcodec 部分完全一致），但**界面渲染相关的 API 是 26.2 独有的**，
-> 详见文末「六、26.2 的渲染层差异」。跨版本移植请另看 [PORTING-26x.md](PORTING-26x.md)。
+> **本文档对应 Minecraft 26.1.1。** 解码、流畅度、验证方法论那几节是这套实现通用的
+> （jcodec 部分完全一致），但**界面渲染相关的 API 是 26.1.1 独有的**，
+> 详见文末「六、26.1.1 的渲染层差异」。跨版本移植请另看 [PORTING-26x.md](PORTING-26x.md)。
 
 ---
 
@@ -229,15 +229,15 @@ ffmpeg -i "你的视频.mp4" -vf scale=960:540,fps=15 -c:v libx264 -pix_fmt yuv4
 
 ---
 
-## 六、26.2 的渲染层差异
+## 六、26.1.1 的渲染层差异
 
-26.2 的绘制架构和 1.21.x 是两个东西。这一节只记「改了什么、为什么必须这么改」，
+26.1.1 的绘制架构和 1.21.x 是两个东西。这一节只记「改了什么、为什么必须这么改」，
 逐项对照表在 [PORTING-26x.md](PORTING-26x.md)。
 
 ### 1. 两段式绘制
 
 1.21.x 里一个界面只有 `render(DrawContext, mouseX, mouseY, delta)` 一个入口，
-背景和控件都画在里面。26.2 拆成了两段：
+背景和控件都画在里面。26.1.1 拆成了两段：
 
 ```
 Screen.extractRenderStateWithTooltipAndSubtitles(...)   ← 框架调用这个
@@ -257,7 +257,7 @@ Screen.extractRenderStateWithTooltipAndSubtitles(...)   ← 框架调用这个
 
 ### 2. 上下文改名，但像素布局没变
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `DrawContext` | `GuiGraphicsExtractor` |
 | `getScaledWindowWidth()` / `getScaledWindowHeight()` | `guiWidth()` / `guiHeight()` |
@@ -276,8 +276,8 @@ Screen.extractRenderStateWithTooltipAndSubtitles(...)   ← 框架调用这个
 
 ### 3. 界面与按键
 
-- **当前界面搬进了 `Gui`**：`Minecraft.getInstance().gui.screen()` 取，
-  `gui.setScreen(...)` 设（`Gui.screen` 是 private，只能走方法）。
+- **当前界面挂在 `Minecraft` 上**：`Minecraft.getInstance().screen` 取，
+  `Minecraft.setScreen(...)` 设。
 - `KeyBinding` → `KeyMapping`，`InputUtil` → `InputConstants`，
   `Identifier` 移到 `net.minecraft.resources` 且**没有 `Identifier.of(...)`**，
   要用 `Identifier.fromNamespaceAndPath(ns, path)`。
@@ -294,28 +294,17 @@ Screen.extractRenderStateWithTooltipAndSubtitles(...)   ← 框架调用这个
 
 这个 bug 光读代码看不出来（颜色值看着没问题），是截图对比才发现的。
 
-### 5. 26.2 的 Vulkan 后端与本模组无关
+### 5. 怎么验证 GUI
 
-26.2 引入 `PreferredGraphicsApi`（`default` / `opengl` / `vulkan`）。
-没有 Vulkan 驱动时日志会出现：
-
-```
-[Vulkan Loader] ERROR: vkGetPhysicalDeviceProperties: Invalid physicalDevice
-```
-
-这是游戏自己在探测后端，**不影响 OpenGL 路径**，模组也不需要做任何适配。
-
-### 6. 无显示器环境下怎么验证 GUI
-
-26.2 里截图 API 也改名了（`ScreenshotRecorder.saveScreenshot` → `Screenshot.grab`），
+26.1.1 里截图 API 也改名了（`ScreenshotRecorder.saveScreenshot` → `Screenshot.grab`），
 套路本身没变：
 
 1. 加一个只由系统属性打开的临时钩子，挂 `ClientTickEvents`，
-   按时间线自动 `gui.setScreen(...)` 切到各个界面；
+   按时间线自动 `setScreen(...)` 切到各个界面；
 2. 每个界面调 `Screenshot.grab(dir, name, client.gameRenderer.mainRenderTarget(), 1, cb)` 截图；
 3. 跑完 `client.stop()`。
 
-> 实测一个容易踩的点：26.2 里第一次启动的当前界面是 `AccessibilityOnboardingScreen`
+> 实测一个容易踩的点：26.1.1 里第一次启动的当前界面是 `AccessibilityOnboardingScreen`
 > （无障碍引导），**不是 `TitleScreen`**。自动切屏前别假设当前是哪个界面。
 >
 > 验证完**必须把临时代码删干净再重新构建**，否则会把调试钩子发出去。

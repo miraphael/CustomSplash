@@ -1,8 +1,8 @@
-# 从 Minecraft 1.21.11 移植到 26.2 的完整记录
+# 从 Minecraft 1.21.11 移植到 26.1.1 的完整记录
 
 > 这份文档记录的是**已经做完的事**，不是计划。
 > 内容全部来自实际编译报错 + 反编译官方 jar 逐项核对，不是凭记忆写的。
-> 目标版本是 **26.2**（不是 26.3）。
+> 目标版本是 **26.1.1**。
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## 二、工具链（版本卡得很死，装错直接构建失败）
 
-| 组件 | 1.21.11 | 26.2 |
+| 组件 | 1.21.11 | 26.1.1 |
 |---|---|---|
 | JDK | 21 | **25** |
 | Gradle | 8.14 | **9.7.0** |
@@ -59,10 +59,10 @@ Configuration 'mappings' has no dependencies
 ### 坑 2：依赖要用 `implementation`，不是 `modImplementation`
 
 ```groovy
-minecraft "com.mojang:minecraft:26.2"
+minecraft "com.mojang:minecraft:26.1.1"
 // 故意不写 mappings —— 不混淆，没什么可映射的
 implementation "net.fabricmc:fabric-loader:0.19.5"
-implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
+implementation "net.fabricmc.fabric-api:fabric-api:0.145.4+26.1.1"
 ```
 
 ### 坑 3：`gradle.properties` 里不要留 `yarn_mappings`
@@ -73,7 +73,7 @@ implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
 
 - Loom **1.14** 起不再支持 Gradle 8
 - Loom **1.17** 起要求 JDK 25
-- 26.2 的版本 JSON 里写着 `javaVersion: { component: java-runtime-epsilon, majorVersion: 25 }`
+- 26.1.1 的版本 JSON 里写着 `javaVersion: { component: java-runtime-epsilon, majorVersion: 25 }`
 
 > 本机没有 JDK 25 时的一个捷径：Mojang 自己下载的
 > `%APPDATA%/.minecraft/runtime/java-runtime-epsilon` 就是一个**完整 JDK 25**
@@ -81,11 +81,11 @@ implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
 
 ---
 
-## 三、类名对照表（1.21.11 Yarn → 26.2 官方）
+## 三、类名对照表（1.21.11 Yarn → 26.1.1 官方）
 
 ### 通用
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `client.MinecraftClient` | `client.Minecraft` |
 | `client.gui.screen.Screen` | `client.gui.screens.Screen` |
@@ -108,7 +108,7 @@ implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
 
 ### Fabric API 侧
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `client.keybinding.v1.KeyBindingHelper` | `client.keymapping.v1.KeyMappingHelper` |
 | `client.command.v2.ClientCommandManager` | `client.command.v2.ClientCommands`（模块升到 v3） |
@@ -119,7 +119,7 @@ implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
 
 ### 1. 渲染入口拆成两段
 
-26.2 的 `Screen` 不再是「一个 `render` 方法画完」，而是：
+26.1.1 的 `Screen` 不再是「一个 `render` 方法画完」，而是：
 
 ```java
 public final void extractRenderStateWithTooltipAndSubtitles(GuiGraphicsExtractor g, int mx, int my, float a) {
@@ -133,7 +133,7 @@ public final void extractRenderStateWithTooltipAndSubtitles(GuiGraphicsExtractor
 
 对应到本模组：
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `@Inject(method = "renderBackground", ...)` | `@Inject(method = "extractBackground", ...)` |
 | `@Inject(method = "render", ...)` | `@Inject(method = "extractRenderState", ...)` |
@@ -144,7 +144,7 @@ public final void extractRenderStateWithTooltipAndSubtitles(GuiGraphicsExtractor
 
 ### 2. 绘制方法改名
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `context.getScaledWindowWidth()` | `graphics.guiWidth()` |
 | `context.getScaledWindowHeight()` | `graphics.guiHeight()` |
@@ -159,7 +159,7 @@ public final void extractRenderStateWithTooltipAndSubtitles(GuiGraphicsExtractor
 
 ### 3. `Screen` 的成员
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `this.textRenderer` | `this.font` |
 | `public void render(DrawContext, int, int, float)` | `public void extractRenderState(GuiGraphicsExtractor, int, int, float)` |
@@ -167,27 +167,28 @@ public final void extractRenderStateWithTooltipAndSubtitles(GuiGraphicsExtractor
 | `protected void init()` | `protected void init()`（不变；`public final void init(int, int)` 会先设 width/height 再调它） |
 | `addDrawableChild(widget)` | `addRenderableWidget(widget)` |
 | `shouldPause()` | `isPauseScreen()` |
-| `close()` | `onClose()`（默认实现就是 `minecraft.gui.setScreen(null)`） |
+| `close()` | `onClose()`（默认实现就是 `minecraft.setScreen(null)`） |
 | `clearAndInit()` | `rebuildWidgets()` |
 | `this.width` / `this.height` | 同名字段（仍是 public） |
 
-### 4. 当前界面在 `Gui` 里，不在 `Minecraft` 里
+### 4. 当前界面就在 `Minecraft` 上
 
 ```java
 // 1.21.11
 Screen s = client.currentScreen;
 client.setScreen(new TitleScreen());
 
-// 26.2
-Screen s = client.gui.screen();          // Minecraft.gui 是 public final Gui
-client.gui.setScreen(new TitleScreen()); // 也有 Minecraft.setScreenAndShow(Screen)
+// 26.1.1
+Screen s = client.screen;                // Minecraft.screen 是 public 字段
+client.setScreen(new TitleScreen());
 ```
 
-> `Gui.screen` 是 **private** 字段，外部只能走 `screen()` / `setScreen(...)`。
+> `Minecraft` 自己就带着 `screen` 字段和 `setScreen(...)`，
+> 取当前界面、切界面都直接走它，不用绕到 `Gui`。
 
 ### 5. 控件构造器
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `ButtonWidget.builder(text, onPress).dimensions(x,y,w,h)` | `Button.builder(text, onPress).bounds(x,y,w,h)` |
 | `Tooltip.of(text)` | `Tooltip.create(text)` |
@@ -206,7 +207,7 @@ public static final KeyBinding KEY = new KeyBinding(
 KeyBindingHelper.registerKeyBinding(KEY);
 while (KEY.wasPressed()) { ... }
 
-// 26.2
+// 26.1.1
 public static final KeyMapping.Category KEY_CATEGORY =
         KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 public static final KeyMapping KEY = new KeyMapping(
@@ -223,7 +224,7 @@ while (KEY.consumeClick()) { ... }
 
 `Identifier.of(...)` **已不存在**：
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `Identifier.of(ns, path)` | `Identifier.fromNamespaceAndPath(ns, path)` |
 | `Identifier.of(path)` | `Identifier.withDefaultNamespace(path)` |
@@ -238,7 +239,7 @@ NativeImage img = tex.getImage();
 textureManager.registerTexture(id, tex);
 textureManager.destroyTexture(id);
 
-// 26.2
+// 26.1.1
 DynamicTexture tex = new DynamicTexture(() -> "customsplash/" + key, w, h, false);
 NativeImage img = tex.getPixels();
 textureManager.register(id, tex);
@@ -250,7 +251,7 @@ textureManager.release(id);
 
 ### 9. 其它小改名
 
-| 1.21.11 | 26.2 |
+| 1.21.11 | 26.1.1 |
 |---|---|
 | `Util.getOperatingSystem().open(path)` | `Util.getPlatform().openPath(path)` |
 | `client.keyboard.setClipboard(s)` | `client.keyboardHandler.setClipboard(s)` |
@@ -264,21 +265,12 @@ textureManager.release(id);
 
 ---
 
-## 五、26.2 新增的图形后端（值得知道）
-
-26.2 有 `PreferredGraphicsApi`（`default` / `opengl` / `vulkan`），
-启动参数是 `--graphicsBackend <值>`，游戏里在「视频设置」也能改。
-
-- `default` = 先试 OpenGL，失败再试 Vulkan；`vulkan` = 反过来。
-- 没有可用 Vulkan 驱动的机器上，日志里会出现
-  `[Vulkan Loader] ERROR: vkGetPhysicalDeviceProperties: Invalid physicalDevice` ——
-  **这只是探测失败，不影响 OpenGL 路径**，不用管。
-
 ---
 
-## 六、怎么验证的（无显示器环境）
+## 五、怎么验证的
 
-这台机器没有可交互的显示器，没法手动点界面，所以用了这套办法：
+渲染层的改动，只看编译通过是不够的 —— 画面到底对不对，只能看实际渲染结果。
+这里的做法是搭一套一次性的冒烟测试：
 
 1. **自己拼启动命令。** PCL 是图形界面启动器，没法脚本化，
    于是写了 [`scripts/run-test-client.py`](../scripts/run-test-client.py)：
@@ -290,12 +282,12 @@ textureManager.release(id);
    - `features` 规则也要判。`has_quick_plays_support` 等四条 quick play 参数
      必须全部为 false，否则 `Main` 会抛 `Only one quick play option can be specified`。
 
-2. **用临时代码代替人手。** 加了一个只在 `-Dcustomsplash.selftest=true` 时生效的钩子，
+2. **加一个临时的自检钩子。** 只在 `-Dcustomsplash.selftest=true` 时生效，
    按固定 tick 时间线依次切到「早期启动屏 → 主菜单 → 设置界面 → 选文件界面 → 全屏预览 → 进入世界」，
    每站用 `Screenshot.grab(...)` 截图，最后 `mc.stop()` 自己退出。
    **验证完必须把这段代码删掉**（本仓库的最终产物里没有它）。
 
-3. **进世界那一站要自动点确认框。** 1.21.11 的存档在 26.2 打开会弹
+3. **进世界那一站要自动点确认框。** 1.21.11 的存档在 26.1.1 打开会弹
    「要不要先备份再升级」，`BackupConfirmScreen` 的回调要反射拿。
    注意：**方法要从字段声明的类型（接口）上取**，
    因为实例通常是 JVM 生成的隐藏 lambda 类，对它调 `getClass().getMethod(...)`
@@ -315,7 +307,7 @@ textureManager.release(id);
 | 全屏预览 | `06-preview.png` | ✅ 视频正常播放、帧在推进 |
 | 进入世界后 | `07-in-game.png` | ✅ 原版画面不受影响 |
 
-视频相关日志（26.2 实机）：
+视频相关日志（26.1.1 实机）：
 
 ```
 [CustomSplash] 已加载媒体: 口袋觉醒_基拉祈_无水印_无黑屏版.mp4 (1280x586)，当前指派给 title 层
@@ -325,12 +317,12 @@ textureManager.release(id);
 ```
 
 也就是说，1.21.11 上做的那些流畅度优化（B 帧重排、双线程流水线、速率自适应、
-共享解码器、整块写显存）**在 26.2 上全部原样生效**，
+共享解码器、整块写显存）**在 26.1.1 上全部原样生效**，
 只有「拿渲染上下文画背景」那一层需要改。
 
 ---
 
-## 七、移植时的工作量分布
+## 六、移植时的工作量分布
 
 真正需要改 MC API 的只有 9 个文件，其余全是纯 Java、可以原样复制：
 
@@ -348,8 +340,8 @@ textureManager.release(id);
 
 ---
 
-## 八、回到 1.21.11 那份
+## 七、回到 1.21.11 那份
 
 1.21.11 的代码在同一个仓库的 `main` 分支（`CustomSplash/` 目录），
-26.2 的在 26.x 分支（`CustomSplash-mc26/` 目录）。
+26.1.1 的在 26.x 分支（`CustomSplash-mc26/` 目录）。
 两边**各自独立构建、独立发布**，产物名带 `+<MC 版本>` 后缀，tag 也不会撞车。
