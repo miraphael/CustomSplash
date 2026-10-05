@@ -7,8 +7,10 @@ import dev.customsplash.media.VideoReport;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 
 /**
  * 把一帧序列（图片 / GIF / 视频）渲染成一张全屏背景。
@@ -315,6 +317,16 @@ public class MediaPlayer implements AutoCloseable {
      * @return 是否真的画了内容（没内容时调用方不应该取消原版渲染）
      */
     public boolean render(GuiGraphicsExtractor context, String fit, float dim) {
+        return render(context, fit, dim, 1.0f);
+    }
+
+    /**
+     * @param alpha 整块画面的不透明度（0~1）。小于 1 时画面是半透明的，
+     *              下面的内容能透出来 —— 早期启动屏淡出的那一下要用到：
+     *              原版的红底是「1 秒内透明度 255→0」淡出的，我们跟着一起淡，
+     *              淡完正好露出主菜单，不会突然跳一下。
+     */
+    public boolean render(GuiGraphicsExtractor context, String fit, float dim, float alpha) {
         if (closed) {
             return false;
         }
@@ -328,20 +340,30 @@ public class MediaPlayer implements AutoCloseable {
 
         float[] r = computeRect(fit, screenW, screenH);
 
-        // 先铺一层不透明黑底。
+        int a = Math.round(Mth.clamp(alpha, 0f, 1f) * 255f);
+
+        // 先铺一层黑底。
         //
         // 不只是为了 contain 模式补黑边 —— 更要紧的是**防止漏出原版界面**：
-        // 背景层和前景层之间还有别的绘制步骤，铺满的黑底能保证我们的画面
+        // 背景层和前景层之间还有别的绘制步骤，铺满的底色能保证我们的画面
         // 是一整块不透明区域，不会让下面那一帧原版背景透出来。
-        context.fill(0, 0, screenW, screenH, 0xFF000000);
+        context.fill(0, 0, screenW, screenH, a << 24);
 
-        context.blit(textureId,
-                Math.round(r[0]), Math.round(r[1]), Math.round(r[2]), Math.round(r[3]),
-                r[4], r[5], r[6], r[7]);
+        // 用带颜色（含 alpha）的 blit，而不是 9 参那个不透明版本：
+        // 后者写死了不透明，没法做上面说的淡出。
+        // 参数里的 u/v 是纹理像素坐标，srcWidth/srcHeight 是源区域大小，
+        // 这里取整张纹理，所以 uv 范围正好是 0~1。
+        int x1 = Math.round(r[0]);
+        int y1 = Math.round(r[1]);
+        context.blit(RenderPipelines.GUI_TEXTURED, textureId,
+                x1, y1, 0f, 0f,
+                Math.round(r[2]) - x1, Math.round(r[3]) - y1,
+                width, height, width, height,
+                (a << 24) | 0x00FFFFFF);
 
         if (dim > 0.001f) {
-            int alpha = Math.min(255, Math.round(dim * 255.0f)) << 24;
-            context.fill(0, 0, screenW, screenH, alpha);
+            int da = Math.min(255, Math.round(dim * 255.0f)) * a / 255;
+            context.fill(0, 0, screenW, screenH, da << 24);
         }
         return true;
     }

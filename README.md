@@ -359,6 +359,7 @@ fabric_version=0.161.0+26.3
   | `v1.0.0+1.21.11` | `customsplash-1.0.0+1.21.11.jar` | Minecraft 1.21.11 |
   | `v1.0.0+26.2` | `customsplash-1.0.0+26.2.jar` | Minecraft 26.2 |
   | `v1.0.0+26.3` | `customsplash-1.0.0+26.3.jar` | Minecraft 26.3 |
+  | `v1.0.2+26.3` | `customsplash-1.0.2+26.3.jar` | Minecraft 26.3（彻底盖住早期启动屏红底、世界加载界面、多人服务器进入界面） |
   | `v1.0.1+26.3` | `customsplash-1.0.1+26.3.jar` | Minecraft 26.3（修复界面出现时先闪一下原版背景） |
 
 - 每个 Release **只挂一个模组 jar**。需要源码的话，用页面底部 GitHub 自动附带的
@@ -374,7 +375,7 @@ fabric_version=0.161.0+26.3
 ./scripts/release.sh
 ```
 
-脚本会自动拼出 `1.0.1+26.3` 这样的完整版本号，然后：检查工作区干净 →
+脚本会自动拼出 `1.0.2+26.3` 这样的完整版本号，然后：检查工作区干净 →
 构建 → 打 tag `v<完整版本>` → 建 Release → 把模组 jar 传上去。
 如果该 tag 已经存在，脚本会**拒绝执行**（避免误覆盖已发布的版本），
 除非显式加 `--replace`，那样也只替换**这一个** tag 的 Release。

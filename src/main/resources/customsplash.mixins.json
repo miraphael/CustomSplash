@@ -5,8 +5,12 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "LoadingOverlayMixin",
+    "LoadingOverlayAccessor",
     "LevelLoadingScreenMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "TransitionScreenMixin",
+    "GenericMessageScreenMixin",
+    "ConnectScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
