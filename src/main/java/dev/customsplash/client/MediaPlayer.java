@@ -25,11 +25,29 @@ import net.minecraft.resources.Identifier;
 public class MediaPlayer implements AutoCloseable {
 
     private final Identifier textureId;
+    private final String label;
     private final FrameSource source;
-    private final DynamicTexture texture;
-    private final NativeImage image;
     private final int width;
     private final int height;
+
+    /**
+     * 纹理是**第一次渲染时才创建**的，不在构造器里。
+     *
+     * <p>原因：这个类的构造器会被 {@code SplashMediaManager} 的**后台预加载线程**调用
+     * （把「读文件 + 解首帧」这段耗时挪到界面出现之前），而
+     * {@code DynamicTexture} 会真的去建 OpenGL 纹理 —— 必须在渲染线程上做。
+     * 所以构造器只做纯 CPU 的准备工作，GL 相关的部分留给 {@link #ensureTexture()}。
+     */
+    private DynamicTexture texture;
+    private NativeImage image;
+
+    /**
+     * 构造时取到的首帧，等纹理建好后再写进去。
+     *
+     * <p>视频源在 {@code open()} 里已经把第一帧同步解好了（{@code currentFrame}），
+     * 所以这里拿到的就是真实画面，不是空缓冲。
+     */
+    private int[] pendingPixels;
 
     /**
      * 直接指向 {@link NativeImage} 底层堆外内存的视图。
@@ -46,7 +64,7 @@ public class MediaPlayer implements AutoCloseable {
      * 而 {@code setPixel(x, y, argb)} 会先做一次 {@code ARGB.toABGR(argb)} 再落盘，
      * 所以内存里的格式和 1.21.11 完全一致，下面的换算不用改。
      */
-    private final java.nio.IntBuffer pixelBuffer;
+    private java.nio.IntBuffer pixelBuffer;
 
     /** ARGB→ABGR 转换的临时缓冲，避免每次上传都新建数组。 */
     private int[] scratch = new int[0];
@@ -71,26 +89,56 @@ public class MediaPlayer implements AutoCloseable {
     /** {@code render()} 被调用的次数（= 这个界面被渲染的游戏帧数）。 */
     private int renderCalls;
 
+    /**
+     * 纯 CPU 的准备工作：取首帧、记住尺寸。
+     *
+     * <p><b>这个方法不碰 OpenGL</b>，所以可以被后台预加载线程调用 ——
+     * 这正是「界面出现时不再先闪一下原版背景」的关键：
+     * 读文件、探测 MP4、解第一帧这些耗时操作全部提前到游戏启动阶段完成，
+     * 等界面真的出现时只剩一次纹理创建 + 上传（毫秒级）。
+     *
+     * <p>纹理相关的部分见 {@link #ensureTexture()}。
+     */
     public MediaPlayer(String key, FrameSource source) {
         this.source = source;
+        this.label = key;
         this.width = source.width();
         this.height = source.height();
         this.textureId = CustomSplash.id("dynamic/" + key);
-        this.texture = new DynamicTexture(() -> "customsplash/" + key, width, height, false);
-        this.image = texture.getPixels();
-        this.pixelBuffer = org.lwjgl.system.MemoryUtil.memIntBuffer(image.getPointer(),
-                width * height);
 
-        // 第一帧立刻上传
-        writePixels(source.nextFrame());
-        texture.upload();
-
-        Minecraft.getInstance().getTextureManager().register(textureId, texture);
+        // 视频源在 open() 里已经同步解好首帧，这里不会等解码。
+        this.pendingPixels = source.nextFrame();
+        this.lastPixels = pendingPixels;
         this.lastFrameAt = System.currentTimeMillis();
+    }
+
+    /**
+     * 建纹理并把首帧传上去。**只能在渲染线程上调用。**
+     *
+     * <p>放在第一次 {@code render()} 里做，而不是构造器里 —— 构造器可能跑在
+     * 后台预加载线程上（见上面），那里没有 GL 上下文。
+     */
+    private void ensureTexture() {
+        if (texture != null) {
+            return;
+        }
+        texture = new DynamicTexture(() -> "customsplash/" + label, width, height, false);
+        image = texture.getPixels();
+        pixelBuffer = org.lwjgl.system.MemoryUtil.memIntBuffer(image.getPointer(),
+                width * height);
+        writePixels(pendingPixels != null ? pendingPixels : new int[width * height]);
+        texture.upload();
+        pendingPixels = null;
+        Minecraft.getInstance().getTextureManager().register(textureId, texture);
     }
 
     public Identifier textureId() {
         return textureId;
+    }
+
+    /** 这一层的名字（title / loading / boot / previewN），只用于日志。 */
+    public String label() {
+        return label;
     }
 
     public int width() {
@@ -270,6 +318,8 @@ public class MediaPlayer implements AutoCloseable {
         if (closed) {
             return false;
         }
+        // 纹理可能还没建（第一次渲染），在这里补上 —— 必须在渲染线程。
+        ensureTexture();
         renderCalls++;
         advanceIfNeeded();
 
@@ -278,10 +328,12 @@ public class MediaPlayer implements AutoCloseable {
 
         float[] r = computeRect(fit, screenW, screenH);
 
-        // contain 模式下先铺黑底，避免出现花花绿绿的原版背景
-        if (!"cover".equalsIgnoreCase(fit) && !"stretch".equalsIgnoreCase(fit)) {
-            context.fill(0, 0, screenW, screenH, 0xFF000000);
-        }
+        // 先铺一层不透明黑底。
+        //
+        // 不只是为了 contain 模式补黑边 —— 更要紧的是**防止漏出原版界面**：
+        // 背景层和前景层之间还有别的绘制步骤，铺满的黑底能保证我们的画面
+        // 是一整块不透明区域，不会让下面那一帧原版背景透出来。
+        context.fill(0, 0, screenW, screenH, 0xFF000000);
 
         context.blit(textureId,
                 Math.round(r[0]), Math.round(r[1]), Math.round(r[2]), Math.round(r[3]),
@@ -334,13 +386,19 @@ public class MediaPlayer implements AutoCloseable {
             return;
         }
         closed = true;
-        try {
-            Minecraft.getInstance().getTextureManager().release(textureId);
-        } catch (Exception ignored) {
-        }
-        try {
-            texture.close();
-        } catch (Exception ignored) {
+        // 纹理可能从来没建过（这层一次都没显示就被关掉了），要判空。
+        if (texture != null) {
+            try {
+                Minecraft.getInstance().getTextureManager().release(textureId);
+            } catch (Exception ignored) {
+            }
+            try {
+                texture.close();
+            } catch (Exception ignored) {
+            }
+            texture = null;
+            image = null;
+            pixelBuffer = null;
         }
         try {
             source.close();
